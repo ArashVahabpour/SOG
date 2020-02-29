@@ -24,7 +24,7 @@ class BaseOptions:
         self.parser.add_argument('--nc', type=int, default=1, help='# of image channels')
 
         # for setting inputs
-        self.parser.add_argument('--dataroot', type=str, default='./data/')
+        self.parser.add_argument('--dataroot', type=str, default='./datasets/')
 
         # for displays
         self.parser.add_argument('--display_winsize', type=int, default=512,  help='display window size')
