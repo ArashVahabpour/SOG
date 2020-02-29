@@ -3,7 +3,7 @@ from collections import OrderedDict
 # from torch.autograd import Variable
 from options.test_options import TestOptions
 from data.data_loader import CreateDataLoader
-from models.models import create_model
+from models.SOG_model import SOGModel
 import util.util as util
 from util.visualizer import Visualizer
 from util import html
@@ -24,7 +24,7 @@ webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.na
 
 # test
 if not opt.engine and not opt.onnx:
-    model = create_model(opt)
+    model = SOGModel()
     if opt.data_type == 16:
         model.half()
     elif opt.data_type == 8:
@@ -59,7 +59,7 @@ for i, data in enumerate(dataset):
         generated = model.inference(data['label'], data['inst'], data['image'])
 
     visuals = OrderedDict([('input_label', util.tensor2label(data['label'][0], opt.label_nc)),
-                           ('synthesized_image', util.tensor2im(generated.data[0]))])
+                           ('synthesized_image', util.make_grid(generated.data[0]))])
     img_path = data['path']
     print('process image... %s' % img_path)
     visualizer.save_images(webpage, visuals, img_path)

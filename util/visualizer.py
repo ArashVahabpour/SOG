@@ -6,21 +6,20 @@ from . import util
 from . import html
 import scipy.misc
 from io import BytesIO  # Python 3.x
+from torch.utils.tensorboard import SummaryWriter
 
 
 class Visualizer:
     def __init__(self, opt):
         # self.opt = opt
-        # self.tf_log = opt.tf_log
+        self.tensorboard = opt.tensorboard
         self.use_html = opt.is_train
-        # self.win_size = opt.display_winsize
+        self.win_size = opt.display_winsize
         self.name = opt.name
 
-        # if self.tf_log:
-        #     import tensorflow as tf
-        #     self.tf = tf
-        #     self.log_dir = os.path.join(opt.checkpoints_dir, opt.name, 'logs')
-        #     self.writer = tf.summary.FileWriter(self.log_dir)
+        if self.tensorboard:
+            self.log_dir = os.path.join(opt.checkpoints_dir, opt.name, 'logs')
+            self.writer = SummaryWriter(self.log_dir)
 
         if self.use_html:
             self.web_dir = os.path.join(opt.checkpoints_dir, opt.name, 'web')
@@ -33,25 +32,25 @@ class Visualizer:
             now = time.strftime("%c")
             log_file.write('================ Training Loss (%s) ================\n' % now)
 
-    # |visuals|: dictionary of images to display or save
+    # # |visuals|: dictionary of images to display or save
     def display_current_results(self, visuals, epoch, step):
-        if self.tf_log: # show images in tensorboard output
-            img_summaries = []
-            for label, image_numpy in visuals.items():
-                # Write the image to a string
-                try:
-                    s = StringIO()
-                except:
-                    s = BytesIO()
-                scipy.misc.toimage(image_numpy).save(s, format="jpeg")
-                # Create an Image object
-                img_sum = self.tf.Summary.Image(encoded_image_string=s.getvalue(), height=image_numpy.shape[0], width=image_numpy.shape[1])
-                # Create a Summary value
-                img_summaries.append(self.tf.Summary.Value(tag=label, image=img_sum))
-
-            # Create and write Summary
-            summary = self.tf.Summary(value=img_summaries)
-            self.writer.add_summary(summary, step)
+    #     if self.tensorboard: # show images in tensorboard output
+    #         img_summaries = []
+    #         for label, image_numpy in visuals.items():
+    #             # Write the image to a string
+    #             try:
+    #                 s = StringIO()
+    #             except:
+    #                 s = BytesIO()
+    #             scipy.misc.toimage(image_numpy).save(s, format="jpeg")
+    #             # Create an Image object
+    #             img_sum = self.writer.add_image(encoded_image_string=s.getvalue(), height=image_numpy.shape[0], width=image_numpy.shape[1])
+    #             # Create a Summary value
+    #             img_summaries.append(self.tf.Summary.Value(tag=label, image=img_sum))
+    #
+    #         # Create and write Summary
+    #         summary = self.tf.Summary(value=img_summaries)
+    #         self.writer.add_summary(summary, step)
 
         if self.use_html:   # save images to a html file
             for label, image_numpy in visuals.items():
@@ -91,19 +90,15 @@ class Visualizer:
                     webpage.add_images(ims[num:], txts[num:], links[num:], width=self.win_size)
             webpage.save()
 
-    # errors: dictionary of error labels and values
-    def plot_current_errors(self, errors, step):
-        # if self.tf_log:
-        #     for tag, value in errors.items():
-        #         summary = self.tf.Summary(value=[self.tf.Summary.Value(tag=tag, simple_value=value)])
-        #         self.writer.add_summary(summary, step)
+    def plot_current_loss(self, loss, step):
+        return
+        if self.tensorboard:
+            summary = self.tf.Summary(value=[self.tf.Summary.Value(tag='loss', simple_value=loss)])
+            self.writer.add_summary(summary, step)
 
-    # errors: same format as |errors| of plotCurrentErrors
-    def print_current_errors(self, epoch, i, errors, t):
+    def print_current_loss(self, epoch, i, loss, t):
         message = '(epoch: %d, iters: %d, time: %.3f) ' % (epoch, i, t)
-        for k, v in errors.items():
-            if v != 0:
-                message += '%s: %.3f ' % (k, v)
+        message += 'loss: %.3f ' % loss
 
         print(message)
         with open(self.log_name, "a") as log_file:

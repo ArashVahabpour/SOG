@@ -1,40 +1,13 @@
-# from __future__ import print_function
-
-# import torch
-from collections import OrderedDict
-# import torch.nn as nn
-# import torch.utils
-# from torchvision import datasets, transforms
-# import torchvision.utils
-# import numpy as np
-# import matplotlib.pyplot as plt
-#
-# #%matplotlib inline
-# import argparse
 import os
-# import random
-# import torch
-# import torch.nn as nn
-# import torch.nn.parallel
-# import torch.backends.cudnn as cudnn
-# import torch.optim as optim
-import torch.utils.data
-# import torchvision.datasets as dset
-# import torchvision.transforms as transforms
-# import torchvision.utils as vutils
 import numpy as np
-# import matplotlib.pyplot as plt
-# import matplotlib.animation as animation
-# from IPython.display import HTML
-#
-# import itertools
 import time
 from math import gcd
-
+from collections import OrderedDict
 from options.train_options import TrainOptions
 from data.data_loader import create_data_loader
-from models.models import create_model
-# import util.util as util
+from models.SOG_model import SOGModel
+import util.util as util
+import latent_optimizers
 from util.visualizer import Visualizer
 
 
@@ -62,40 +35,45 @@ else:
 #     opt.max_dataset_size = 10
 
 data_loader = create_data_loader(opt)
-dataset = data_loader.load_data()
-dataset_size = len(data_loader)
+dataset = data_loader.dataset
+dataset_size = len(dataset)
 print('#training images = %d' % dataset_size)
 
-model = create_model(opt)
+sog_model = SOGModel(opt)
+if opt.latent_optimizer == 'bcs':
+    latent_optimizer = latent_optimizers.BlockCoordinateSearch()
+else:
+    raise NotImplementedError('latent optimizer {} not implemented!'.format(opt.latent_optimizer == 'bcs'))
+
+# TODO: analyze and remove dependency cycle between latent_optimizer and SOG_model, refer to https://stackoverflow.com/questions/40532274/two-python-class-instances-have-a-reference-to-each-other  / https://www.google.com/search?q=is+it+right+practice+if+two+classes+have+reference+to+one+another+python&oq=is+it+right+practice+if+two+classes+have+reference+to+one+another+python&aqs=chrome..69i57.17847j0j7&sourceid=chrome&ie=UTF-8
+
+latent_optimizer.initialize(opt, sog_model)
+sog_model.set_latent_optimizer(latent_optimizer)
+
 visualizer = Visualizer(opt)
-# if opt.fp16:
-#     from apex import amp
-#
-#     model, optimizer_G, optimizer_D] = amp.initialize(model, [model.optimizer_G, model.optimizer_D], opt_level='O1')
-#     model = torch.nn.DataParallel(model, device_ids=opt.gpu_ids)
-# else:
-optimizer = model.optimizer
+
+optimizer = sog_model.optimizer
 
 total_steps = (start_epoch - 1) * dataset_size + epoch_iter
 
-# display_delta = total_steps % opt.display_freq
+display_delta = total_steps % opt.display_freq
 print_delta = total_steps % opt.print_freq
-# save_delta = total_steps % opt.save_latest_freq
+save_delta = total_steps % opt.save_latest_freq
 
 for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
     epoch_start_time = time.time()
     if epoch != start_epoch:
         epoch_iter = epoch_iter % dataset_size
-    for i, (data, ) in enumerate(dataset, start=epoch_iter):
+    for i, (data, _) in enumerate(data_loader, start=epoch_iter):
         if total_steps % opt.print_freq == print_delta:
             iter_start_time = time.time()
-        total_steps += opt.batchSize
-        epoch_iter += opt.batchSize
-
+        total_steps += opt.batch_size
+        epoch_iter += opt.batch_size
         # whether to collect output images
         save_fake = total_steps % opt.display_freq == display_delta
 
-        loss, generated = model(data, infer=save_fake)
+        data = data.to(opt.device)
+        loss, generated = sog_model(data, infer=save_fake)
 
         # # sum per device losses
         # losses = [torch.mean(x) if not isinstance(x, int) else x for x in losses]
@@ -105,48 +83,28 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
         # loss_D = (loss_dict['D_fake'] + loss_dict['D_real']) * 0.5
         # loss_G = loss_dict['G_GAN'] + loss_dict.get('G_GAN_Feat', 0) + loss_dict.get('G_VGG', 0)
 
-        ############### Backward Pass ####################
         # update generator weights
         optimizer.zero_grad()
-        # if opt.fp16:
-        #     with amp.scale_loss(loss_G, optimizer) as scaled_loss:
-        #         scaled_loss.backward()
-        # else:
         loss.backward()
         optimizer.step()
 
-        # # update discriminator weights
-        # optimizer_D.zero_grad()
-        # if opt.fp16:
-        #     with amp.scale_loss(loss_D, optimizer_D) as scaled_loss:
-        #         scaled_loss.backward()
-        # else:
-        #     loss_D.backward()
-        # optimizer_D.step()
-
-        ############## Display results and errors ##########
-        ### print out errors
+        # print out errors
         if total_steps % opt.print_freq == print_delta:
-            errors = {k: v.data.item() if not isinstance(v, int) else v for k, v in loss_dict.items()}
+            # errors = {k: v.data.item() if not isinstance(v, int) else v for k, v in loss_dict.items()}
             t = (time.time() - iter_start_time) / opt.print_freq
-            visualizer.print_current_errors(epoch, epoch_iter, errors, t)
-            visualizer.plot_current_errors(errors, total_steps)
-            # call(["nvidia-smi", "--format=csv", "--query-gpu=memory.used,memory.free"])
+            visualizer.print_current_loss(epoch, epoch_iter, loss, t)  # loss.data.item?! TODO
+            visualizer.plot_current_loss(loss, total_steps)
 
-        ### display output images
+        # display output images
         if save_fake:
-            visuals = OrderedDict([('real_image', util.tensor2im(data['image'][0])),
-                                   ('synthesized_image', util.tensor2im(generated.data[0]))])
-
-            # visuals = OrderedDict([('input_label', util.tensor2label(data['label'][0], opt.label_nc)),
-            #                        ('synthesized_image', util.tensor2im(generated.data[0])),
-            #                        ('real_image', util.tensor2im(data['image'][0]))])
+            visuals = OrderedDict([('real_image', util.make_grid(data)),
+                                   ('synthesized_image', util.make_grid(generated.data))])
             visualizer.display_current_results(visuals, epoch, total_steps)
 
-        ### save latest model
+        # save latest model
         if total_steps % opt.save_latest_freq == save_delta:
             print('saving the latest model (epoch %d, total_steps %d)' % (epoch, total_steps))
-            model.module.save('latest')
+            sog_model.save('latest')
             np.savetxt(iter_path, (epoch, epoch_iter), delimiter=',', fmt='%d')
 
         if epoch_iter >= dataset_size:
@@ -157,17 +115,13 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
     print('End of epoch %d / %d \t Time Taken: %d sec' %
           (epoch, opt.niter + opt.niter_decay, time.time() - epoch_start_time))
 
-    ### save model for this epoch
+    # save model for this epoch
     if epoch % opt.save_epoch_freq == 0:
         print('saving the model at the end of epoch %d, iters %d' % (epoch, total_steps))
-        model.module.save('latest')
-        model.module.save(epoch)
+        sog_model.save('latest')
+        sog_model.save(epoch)
         np.savetxt(iter_path, (epoch + 1, 0), delimiter=',', fmt='%d')
 
-    ### instead of only training the local enhancer, train the entire network after certain iterations
-    if (opt.niter_fix_global != 0) and (epoch == opt.niter_fix_global):
-        model.module.update_fixed_params()
-
-    ### linearly decay learning rate after certain iterations
+    # linearly decay learning rate after certain iterations
     if epoch > opt.niter:
-        model.module.update_learning_rate()
+        sog_model.update_learning_rate()

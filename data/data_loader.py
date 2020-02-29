@@ -11,7 +11,10 @@ def create_data_loader(opt):
         'fashion-mnist': _fashion_mnist,
         'olivetti-faces': _olivetti_faces,
     }
-    func = switcher.get(opt, lambda: "Invalid month")
+    func = switcher.get(opt.dataset, None)
+
+    if func is None:
+        raise NotImplementedError('dataset {} not implemented!'.format(opt.dataset))
 
     return func(opt)
 

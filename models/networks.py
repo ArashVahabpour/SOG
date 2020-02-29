@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import functools
+from math import log2, ceil # TODO implement default choice of depth
 
 
 def weights_init(m):
@@ -22,19 +23,23 @@ def get_norm_layer(norm_type='instance'):
     return norm_layer
 
 
-def define_G(opt, gpu_ids=[]):
-    if opt.model == 'deconv':
+def define_G(opt):
+    if opt.net_type == 'deconv':
         netG = Deconv(opt)
-    elif opt.model == 'mlp':
+    elif opt.net_type == 'mlp':
         netG = MLP(opt)
     else:
-        raise NotImplementedError('generator of type {} not implemented!'.format(opt.model))
+        raise NotImplementedError('generator of type {} not implemented!'.format(opt.net_type))
 
     print(netG)
-    if len(gpu_ids) > 0:
+
+    if len(opt.gpu_ids) > 0:
         assert(torch.cuda.is_available())
-        netG.cuda(gpu_ids[0])
+        netG.cuda(opt.gpu_ids[0])
     netG.apply(weights_init)
+
+    if opt.is_train and len(opt.gpu_ids):
+        netG = torch.nn.DataParallel(netG, device_ids=opt.gpu_ids)
 
     return netG
 
@@ -43,10 +48,12 @@ class Deconv(nn.Module):
     def __init__(self, opt):
         super().__init__()
 
-        assert (opt.deconv_depth >= 0)
-        # assert False, 'ValueError: check out the condition to compare 2 ** opt.deconv_depth > opt.img_size. create a default value of ceil(log2(img_size)) /// from math import log2, ceil'
+        self.output_size = 2 ** (opt.deconv_depth + 1)
+        self.img_size = opt.img_size
+        assert self.output_size > self.img_size, 'please consider a higher depth.'
+
         activation = nn.ReLU(True)  # TODO check why true?
-        norm_layer = get_norm_layer(opt.norm_type)
+        norm_layer = get_norm_layer(opt.norm)
         last_activation = nn.Sigmoid()  # TODO change this into an option
 
         model = []
@@ -54,8 +61,8 @@ class Deconv(nn.Module):
         for i in range(opt.deconv_depth):
             last_layer = i == opt.deconv_depth - 1
 
-            mult = 2 ** (opt.deconv_depth - i)
-            model.append(nn.ConvTranspose2d(opt.ngf * mult if i else self.opt.n_latent,
+            mult = 2 ** (opt.deconv_depth - i - 1)
+            model.append(nn.ConvTranspose2d(opt.ngf * mult if i else opt.n_latent,
                                             int(opt.ngf * mult / 2) if not last_layer else opt.nc,
                                             kernel_size=4,
                                             stride=2 if i else 1,
@@ -70,10 +77,14 @@ class Deconv(nn.Module):
         self.model = nn.Sequential(*model)
 
     def forward(self, z):
-        return self.model(z.view(*z.shape, 1, 1))
+        y = self.model(z.view(*z.shape, 1, 1))
+        for dim in (2, 3):
+            y = y.narrow(dim, start=(self.output_size - self.img_size)//2, length=self.img_size)
+        return y
 
 
 class MLP(nn.Module):
+    # Multi-Layer Perceptron (Fully Connected) Model
     # architecture: n_latent --> n_hidden --> n_hidden --> ... --> n_hidden --> img_size^2
     def __init__(self, opt):
         super().__init__()
