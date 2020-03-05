@@ -2,7 +2,7 @@ import argparse
 import os
 from util import util
 import torch
-
+import warnings
 
 class BaseOptions:
     def __init__(self):
@@ -12,39 +12,54 @@ class BaseOptions:
         self.parser.add_argument('--name', type=str, default='mnist',
                                  help='name of the experiment. It decides where to store samples and models')
         self.parser.add_argument('--dataset', type=str, default='mnist',
-                                 help='name of the predefined dataset: e.g. mnist, emnist, fashion-mnist')
+                                 help='name of the predefined dataset: e.g. mnist, emnist, fashion-mnist, celeba')
+        self.parser.add_argument('--normalize_data', action='store_true', help='if dataset is normalized to mean 0 and std 1')
+
         self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         self.parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
         self.parser.add_argument('--net_type', type=str, default='deconv', help='which network to use: e.g. deconv, mlp')
-        self.parser.add_argument('--norm', type=str, default='instance', help='instance normalization or batch normalization')
+        self.parser.add_argument('--norm_type', type=str, default='instance', help='instance normalization or batch normalization')
+        self.parser.add_argument('--last_activation', type=str, default='sigmoid', help='last layer activation')  # todo link to normalization
+        self.parser.add_argument('--which_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
 
         # input/output sizes
+        self.parser.add_argument('--batch_size', type=int, default=64, help='input batch size')
         self.parser.add_argument('--img_size', type=int, default=28, help='scale images to this size')
         self.parser.add_argument('--n_latent', default=2, type=int, help='# of latent dimensions')
         self.parser.add_argument('--nc', type=int, default=1, help='# of image channels')
+
+        # TODO nc, img_size to be determined by dataset by default
 
         # for setting inputs
         self.parser.add_argument('--dataroot', type=str, default='./datasets/')
 
         # for displays
         self.parser.add_argument('--display_winsize', type=int, default=512,  help='display window size')
-        self.parser.add_argument('--tensorboard', action='store_false', help='if specified, use tensorboard logging. Requires tensorboard installed')  # TODO store_true
+        self.parser.add_argument('--tensorboard', action='store_true', help='if specified, use tensorboard logging. Requires tensorboard installed')  #TODO debug this feature
 
         # for deconv generator
         self.parser.add_argument('--ngf', type=int, default=64, help='# of gen filters in first conv layer')
-        self.parser.add_argument('--deconv_depth', type=int, default=4,
+        self.parser.add_argument('--n_deconv', type=int, default=4,
                                  help='number of deconv blocks in the generator network')
+        self.parser.add_argument('--n_conv', type=int, default=0,
+                                 help='number of conv blocks in the generator network')
 
         # for mlp generator
         self.parser.add_argument('--n_hidden', type=int, default=128, help='number of hidden neurons in intermediate layers')
-        self.parser.add_argument('--mlp_depth', type=int, default=28, help='depth (number of hidden layers)')
+        self.parser.add_argument('--mlp_depth', type=int, default=3, help='depth (number of hidden layers)')
 
-        # coordinate search optimizer parameters
+        # latent optimizers
+        self.parser.add_argument('--latent_optimizer', type=str, default='bcs', help='method to find best latent code')
+        self.parser.add_argument('--criterion', type=str, default='l1', help='optimization loss function')
+
+        # block coordinate search
         self.parser.add_argument('--block_size', type=int, default=2, help='size of coordinate search blocks')
         self.parser.add_argument('--n_rounds', type=int, default=1, help='number of coordinate search rounds')
         self.parser.add_argument('--samples_per_dim', type=int, default=32, help='number of samples per dimension')
         self.parser.add_argument('--match_criterion', type=str, default='l1', help='loss function used for finding the matching code')
-        self.parser.add_argument('--criterion', type=str, default='l1', help='optimization loss function')
+
+        # lbfgs
+        self.parser.add_argument('--num_lbfgs_steps', type=int, default=100, help='number of lbfgs steps')
 
     def parse(self, save=True):
         self.opt = self.parser.parse_args()
@@ -85,5 +100,11 @@ class BaseOptions:
                 for k, v in sorted(args.items()):
                     opt_file.write('%s: %s\n' % (str(k), str(v)))
                 opt_file.write('-------------- End ----------------\n')
+
+        if self.opt.batch_size * self.opt.latent_batch_size >= 2 ** 16:
+            warnings.warn(
+                '''Try reducing samples_per_dim or batch_size, this can cause cuDNN bugs.
+                https://github.com/pytorch/pytorch/issues/4107#issuecomment-544739942
+                ''', RuntimeWarning)
 
         return self.opt

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import functools
-from math import log2, ceil # TODO implement default choice of depth
+from math import log2, ceil  # TODO implement default choice of depth
 
 
 def weights_init(m):
@@ -13,7 +13,7 @@ def weights_init(m):
         m.bias.data.fill_(0)
 
 
-def get_norm_layer(norm_type='instance'):
+def get_norm_layer(norm_type):
     if norm_type == 'batch':
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True)
     elif norm_type == 'instance':
@@ -21,6 +21,16 @@ def get_norm_layer(norm_type='instance'):
     else:
         raise NotImplementedError('normalization layer {} is not found'.format(norm_type))
     return norm_layer
+
+
+def get_activation_layer(activation_type):
+    if activation_type == 'sigmoid':
+        activation_layer = nn.Sigmoid()
+    elif activation_type == 'tanh':
+        activation_layer = nn.Tanh()
+    else:
+        raise NotImplementedError('normalization layer {} is not found'.format(activation_type))
+    return activation_layer
 
 
 def define_G(opt):
@@ -38,48 +48,97 @@ def define_G(opt):
         netG.cuda(opt.gpu_ids[0])
     netG.apply(weights_init)
 
-    if opt.is_train and len(opt.gpu_ids):
+    if len(opt.gpu_ids):
         netG = torch.nn.DataParallel(netG, device_ids=opt.gpu_ids)
 
     return netG
 
 
+# class Deconv(nn.Module):
+#     def __init__(self, opt):
+#         super().__init__()
+#
+#         self.output_size = 2 ** (opt.n_deconv + 1)
+#         self.img_size = opt.img_size
+#         assert self.output_size >= self.img_size, 'please consider a higher depth.'
+#
+#         activation = nn.ReLU(True)  # TODO check why true?
+#         norm_layer = get_norm_layer(opt.norm)
+#         last_activation = nn.Sigmoid()  # TODO change this into an option
+#
+#         model = []
+#
+#         for i in range(opt.n_deconv):
+#             last_layer = i == opt.n_deconv - 1
+#
+#             mult = 2 ** (opt.n_deconv - i - 1)
+#             model.append(nn.ConvTranspose2d(opt.ngf * mult if i else opt.n_latent,
+#                                             int(opt.ngf * mult / 2) if not last_layer else opt.nc,
+#                                             kernel_size=4,
+#                                             stride=2 if i else 1,
+#                                             padding=1 if i else 0,
+#                                             bias=False))
+#
+#             if not last_layer:
+#                 model += [norm_layer(int(opt.ngf * mult / 2)), activation]
+#             else:
+#                 model.append(last_activation)
+#
+#         self.model = nn.Sequential(*model)
+#
+#     def forward(self, z):
+#         y = self.model(z.view(*z.shape, 1, 1))
+#         for dim in (2, 3):
+#             y = y.narrow(dim, start=(self.output_size - self.img_size)//2, length=self.img_size)
+#
+#         return y
+
 class Deconv(nn.Module):
     def __init__(self, opt):
         super().__init__()
 
-        self.output_size = 2 ** (opt.deconv_depth + 1)
+        self.output_size = 2 ** (opt.n_deconv + 1)
         self.img_size = opt.img_size
-        assert self.output_size > self.img_size, 'please consider a higher depth.'
+        assert self.output_size >= self.img_size, 'please consider a higher depth.'  # TODO: verify 2** is exact
 
-        activation = nn.ReLU(True)  # TODO check why true?
-        norm_layer = get_norm_layer(opt.norm)
-        last_activation = nn.Sigmoid()  # TODO change this into an option
+        activation = nn.ReLU(True)
+        norm_layer = get_norm_layer(opt.norm_type)
+        last_activation = get_activation_layer(opt.last_activation)
 
         model = []
 
-        for i in range(opt.deconv_depth):
-            last_layer = i == opt.deconv_depth - 1
+        for i in range(opt.n_deconv):
+            last_layer = i == opt.n_deconv - 1 and opt.n_conv == 0
 
-            mult = 2 ** (opt.deconv_depth - i - 1)
-            model.append(nn.ConvTranspose2d(opt.ngf * mult if i else opt.n_latent,
-                                            int(opt.ngf * mult / 2) if not last_layer else opt.nc,
+            mult = 2 ** (opt.n_deconv - 1 - i)
+            model += [nn.ConvTranspose2d(opt.ngf * mult if i else opt.n_latent,
+                                            opt.ngf * mult // 2 if not last_layer else opt.nc,
                                             kernel_size=4,
                                             stride=2 if i else 1,
                                             padding=1 if i else 0,
-                                            bias=False))
-
+                                            bias=False)]
             if not last_layer:
-                model += [norm_layer(int(opt.ngf * mult / 2)), activation]
-            else:
-                model.append(last_activation)
+                model += [norm_layer(opt.ngf * mult), activation]
+
+        for i in range(opt.n_conv):
+            last_layer = i == opt.n_conv - 1
+
+            model += [nn.ReflectionPad2d(1),
+                      nn.Conv2d(opt.ngf, opt.ngf if not last_layer else opt.nc, kernel_size=3, padding=0)]
+            if not last_layer:
+                model += [norm_layer(opt.ngf), activation]
+
+        # last layer
+        model.append(last_activation)
 
         self.model = nn.Sequential(*model)
+        #todo check model layers for combination of deconv and conv
 
     def forward(self, z):
         y = self.model(z.view(*z.shape, 1, 1))
         for dim in (2, 3):
             y = y.narrow(dim, start=(self.output_size - self.img_size)//2, length=self.img_size)
+
         return y
 
 
@@ -98,7 +157,7 @@ class MLP(nn.Module):
         model = []
 
         for i in range(opt.mlp_depth):
-            last_layer = i + 1 == opt.deconv_depth
+            last_layer = i + 1 == opt.n_deconv
 
             model += [torch.nn.Linear(opt.n_hidden if i else opt.n_latent,
                                       opt.nc * opt.img_size ** 2 if last_layer else opt.n_hidden),

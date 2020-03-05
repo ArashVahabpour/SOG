@@ -1,6 +1,8 @@
 import torch
 import os
 from . import networks
+import latent_optimizers
+from models.losses import VGGLoss
 
 
 class SOGModel(torch.nn.Module):
@@ -16,7 +18,7 @@ class SOGModel(torch.nn.Module):
 
         # load networks
         if not self.is_train or opt.continue_train:
-            self.load_network(self.netG, 'G', opt.which_epoch)
+            self.load_network(opt.which_epoch)
 
         if self.is_train:
             self.old_lr = opt.lr
@@ -24,35 +26,45 @@ class SOGModel(torch.nn.Module):
 
         if opt.criterion == 'l1':
             self.criterion = torch.nn.L1Loss()
+        elif opt.criterion == 'l1_asym':  # TODO: REMOVE, DEBUG.
+            F = torch.nn.functional
+            self.criterion = lambda x, y: (5 * F.relu(x - y) + F.relu(y - x)).mean()
+        elif opt.criterion == 'vgg':
+            self.criterion = VGGLoss()
         else:
-            raise NotImplementedError('criterion {} is not implemented!'.format(opt.criterion))
+            raise NotImplementedError('Criterion {} is not implemented!'.format(opt.criterion))
 
-        self.latent_optimizer = None
+        if opt.latent_optimizer == 'bcs':
+            self.latent_optimizer = latent_optimizers.BlockCoordinateSearch(opt.match_criterion)
+        elif opt.latent_optimizer == 'lbfgs':
+            self.latent_optimizer = latent_optimizers.LBFGS(opt.match_criterion, opt.num_lbfgs_steps)
+        else:
+            raise NotImplementedError('latent optimizer {} not implemented!'.format(opt.latent_optimizer == 'bcs'))
+        # TODO: analyze and remove dependency cycle between latent_optimizer and SOG_model, refer to https://stackoverflow.com/questions/40532274/two-python-class-instances-have-a-reference-to-each-other  / https://www.google.com/search?q=is+it+right+practice+if+two+classes+have+reference+to+one+another+python&oq=is+it+right+practice+if+two+classes+have+reference+to+one+another+python&aqs=chrome..69i57.17847j0j7&sourceid=chrome&ie=UTF-8
+        self.latent_optimizer.initialize(opt, self)
 
     # helper saving function that can be used by subclasses
     def save(self, epoch):
         save_filename = 'G_{}.pth'.format(epoch)
         save_path = os.path.join(self.save_dir, save_filename)
-        torch.save(self.netG.cpu().state_dict(), save_path)
+        netG_module = self.netG.module if hasattr(self.netG, 'module') else self.netG  # to avoid DataParallel to affect
+        torch.save(netG_module.cpu().state_dict(), save_path)
         if len(self.opt.gpu_ids) and torch.cuda.is_available():
             self.netG.cuda()
 
     # helper loading function that can be used by subclasses
-    def load_network(self, network, network_label, epoch_label):
-        save_filename = '{}_{}.pth'.format(network_label, epoch_label)
+    def load_network(self, epoch_label):
+        save_filename = 'G_{}.pth'.format(epoch_label)
         save_path = os.path.join(self.save_dir, save_filename)
+        netG_module = self.netG.module if hasattr(self.netG, 'module') else self.netG  # to avoid DataParallel to affect
         if not os.path.isfile(save_path):
-            print('%s not exists yet!' % save_path)
-            if network_label == 'G':
-                raise Exception('Generator must exist!')
+            print('%s does not exist yet!' % save_path)
+            raise Exception('Generator must exist!')
         else:
             try:
-                network.load_state_dict(torch.load(save_path))
-            except:
+                netG_module.load_state_dict(torch.load(save_path))
+            except Exception:
                 raise Exception('The network architecture does not match the saved weights')
-
-    def set_latent_optimizer(self, latent_optimizer):
-        self.latent_optimizer = latent_optimizer
 
     def forward(self, real, infer=False):
         # batch_size x n_gaussian
@@ -68,15 +80,21 @@ class SOGModel(torch.nn.Module):
 
         return loss, fake if infer else None
 
-    def inference(self, z):
-        torch.backends.cudnn.benchmark = False
-        self.netG.eval()
+    def decode(self, z, requires_grad=False):
+        # TODO: when to toggle benchmark?
+        #  https://stackoverflow.com/questions/58961768/set-torch-backends-cudnn-benchmark-true-or-not
 
-        with torch.no_grad():
+        if requires_grad:
             y = self.netG(z)
+        else:
+            torch.backends.cudnn.benchmark = False
+            self.netG.eval()
 
-        self.netG.train()
-        torch.backends.cudnn.benchmark = True
+            with torch.no_grad():
+                y = self.netG(z)
+
+            self.netG.train()
+            torch.backends.cudnn.benchmark = True
 
         return y
 
@@ -87,6 +105,7 @@ class SOGModel(torch.nn.Module):
     def update_learning_rate(self):
         lrd = self.opt.lr / self.opt.niter_decay
         lr = self.old_lr - lrd
-        for param_group in self.optimizer_G.param_groups:
+        for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
+        print('>>>>>>> DEBUG, old lr:{}, new lr:{}'.format(self.old_lr, lr)) # TODO directly assign line's value, call in the beginning if continue_train / lrd = self.opt.lr / self.opt.niter_decay * max(0, opt.start_epoch - opt.niter)
         self.old_lr = lr

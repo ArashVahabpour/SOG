@@ -7,6 +7,6 @@ class TestOptions(BaseOptions):
         super().__init__()
         # BaseOptions.initialize(self)
         self.parser.add_argument('--results_dir', type=str, default='./results/', help='saves results here.')
-        self.parser.add_argument('--which_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
-        self.parser.add_argument('--how_many', type=int, default=50, help='how many test images to run')
+        self.parser.add_argument('--how_many', type=int, default=50, help='how many test batches to run')
+        self.parser.add_argument('--grid_width', type=int, default=6, help='how many splits per dimension for full grid of latent space')
         self.is_train = False
