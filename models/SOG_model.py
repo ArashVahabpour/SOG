@@ -8,6 +8,7 @@ from models.losses import VGGLoss
 class SOGModel(torch.nn.Module):
     def __init__(self, opt):
         super().__init__()
+        # Speedup
         if not opt.is_train:
             torch.backends.cudnn.benchmark = True
         self.is_train = opt.is_train
@@ -23,7 +24,7 @@ class SOGModel(torch.nn.Module):
         if self.is_train:
             self.old_lr = opt.lr
             self.optimizer = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-
+        # Criterion which we use to backprop
         if opt.criterion == 'l1':
             self.criterion = torch.nn.L1Loss()
         elif opt.criterion == 'l1_asym':  # TODO: REMOVE, DEBUG.
@@ -83,6 +84,7 @@ class SOGModel(torch.nn.Module):
     def decode(self, z, requires_grad=False):
         # TODO: when to toggle benchmark?
         #  https://stackoverflow.com/questions/58961768/set-torch-backends-cudnn-benchmark-true-or-not
+        # directly give model a Z to generate image 
 
         if requires_grad:
             y = self.netG(z)
