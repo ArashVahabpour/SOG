@@ -32,6 +32,8 @@ class SOGModel(torch.nn.Module):
             self.criterion = lambda x, y: (5 * F.relu(x - y) + F.relu(y - x)).mean()
         elif opt.criterion == 'vgg':
             self.criterion = VGGLoss()
+        elif opt.criterion == 'vgg_l1':
+            self.criterion = lambda x,y: torch.nn.L1Loss()(x,y) + VGGLoss()(x,y)
         else:
             raise NotImplementedError('Criterion {} is not implemented!'.format(opt.criterion))
 
