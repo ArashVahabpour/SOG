@@ -1,7 +1,7 @@
 from __future__ import print_function
 import os
 from PIL import Image
-
+#import torchvision
 
 def mkdirs(paths):
     if isinstance(paths, list) and not isinstance(paths, str):
@@ -17,5 +17,7 @@ def mkdir(path):
 
 
 def save_image(image_numpy, image_path):
+    #print(image_numpy.shape)
+    #image_pil =  torchvision.transforms.ToPILImage()(image_numpy.cpu())
     image_pil = Image.fromarray(image_numpy)
     image_pil.save(image_path)

@@ -102,11 +102,20 @@ def plt_flow_samples(prior_sample, transform, ax, npts=100, memory=100, title="$
 
 
 def plt_samples(samples, ax, npts=100, title="$x ~ p(x)$"):
-    ax.hist2d(samples[:, 0], samples[:, 1], range=[[LOW, HIGH], [LOW, HIGH]], bins=npts)
+    samples = samples.cpu().numpy()
+    ax.hist2d(samples[:, 0], samples[:, 1], range=[[np.nanmin(samples[:, 0]), np.nanmax(samples[:, 0])], [np.nanmin(samples[:, 1]), np.nanmax(samples[:, 1])]], bins=npts)
     ax.invert_yaxis()
     ax.get_xaxis().set_ticks([])
     ax.get_yaxis().set_ticks([])
     ax.set_title(title)
+
+def plt_samples_old(prior_sample, transform, ax, npts=100, memory=100, title="$x ~ q(x) old$", device="cpu"):
+    y_pred = transform(prior_sample).detach().cpu().numpy()
+    ax.scatter(y_pred[:, 0], y_pred[:, 1], marker='.', s=0.1)
+    ax.invert_yaxis()
+    ax.get_xaxis().set_ticks([])
+    ax.get_yaxis().set_ticks([])
+    ax.set_title(title)    
 
 
 def visualize_transform(
@@ -121,12 +130,15 @@ def visualize_transform(
     else:
         plt_potential_func(potential_or_samples, ax, npts=npts)
 
-    ax = plt.subplot(1, 3, 2, aspect="equal")
-    if inverse_transform is None:
-        plt_flow(prior_density, transform, ax, npts=npts, device=device)
-    else:
-        plt_flow_density(prior_density, inverse_transform, ax, npts=npts, memory=memory, device=device)
+    # ax = plt.subplot(1, 3, 2, aspect="equal")
+    # if inverse_transform is None:
+    #     plt_flow(prior_density, transform, ax, npts=npts, device=device)
+    # else:
+    #     plt_flow_density(prior_density, inverse_transform, ax, npts=npts, memory=memory, device=device)
 
-    ax = plt.subplot(1, 3, 3, aspect="equal")
+    ax = plt.subplot(1, 3, 2, aspect="equal")
     if transform is not None:
         plt_flow_samples(prior_sample, transform, ax, npts=npts, memory=memory, device=device)
+    
+    ax = plt.subplot(1, 3, 3, aspect="equal")    
+    plt_samples_old(potential_or_samples, transform, ax, npts=npts, memory=memory, device=device)
