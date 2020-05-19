@@ -79,13 +79,13 @@ class SOGModel(torch.nn.Module):
         if self.opt.net_type == 'mlp':
             fake = fake.reshape(real.shape)
 
-        loss = self.criterion(real, fake)
+        loss = self.criterion(fake, real)
 
         return loss, fake if infer else None
 
     def decode(self, z, requires_grad=False):
         # TODO: when to toggle benchmark?
-        #  https://stackoverflow.com/questions/58961768/set-torch-backends-cudnn-benchmark-true-or-not
+        # https://stackoverflow.com/questions/58961768/set-torch-backends-cudnn-benchmark-true-or-not
         # directly give model a Z to generate image 
 
         if requires_grad:

@@ -13,6 +13,7 @@ import os
 def make_grid(image_tensor):  # TODO add normalization option
     batch_size = image_tensor.shape[0]
     grid_width = 2 ** ceil(log2(batch_size) // 2)
+    # print('WARNING only>>>>tanh'); image_tensor = image_tensor/2+.5  # todo
     img = torchvision.utils.make_grid(image_tensor, nrow=grid_width, padding=2,
                                       normalize=False, range=None, scale_each=False,
                                       pad_value=0)
@@ -28,7 +29,7 @@ def generate_full_grid(sog_model, opt):  # TODO add this to training
     cdf_end = 1 - cdf_begin
 
     z1 = np.linspace(cdf_begin, cdf_end, grid_width)
-    z1 = scipy.stats.norm.ppf(z1)
+    z1 = stats.norm.ppf(z1)
     z1 = torch.tensor(z1, device=opt.device, dtype=torch.float32)
 
     # x_test[i1, i2, ..., ik, :] = x1[i], x1[j], ..., x1[k]

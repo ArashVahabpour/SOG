@@ -45,9 +45,14 @@ class VGGLoss(nn.Module):
         self.criterion = nn.L1Loss()
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
-    def forward(self, x, y):
-        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+    def forward(self, fake, real):
+        shape = [int(x) for x in fake.shape]
+        shape[1] = 3
+
+        # replicate channel 3 times for grayscale images
+        fake_vgg, real_vgg = self.vgg(fake.expand(shape)), self.vgg(real.expand(shape))
+
         loss = 0
-        for i in range(len(x_vgg)):
-            loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())
+        for i in range(len(fake_vgg)):
+            loss += self.weights[i] * self.criterion(fake_vgg[i], real_vgg[i].detach())
         return loss

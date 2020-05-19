@@ -110,6 +110,6 @@ def _celeba(opt):
                                        transforms.ToTensor(),
                                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                    ]))
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)  # todo , num_workers=workers)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)  # todo , num_workers=workers
 
     return data_loader

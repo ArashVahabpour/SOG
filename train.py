@@ -6,7 +6,7 @@ from collections import OrderedDict
 from options.train_options import TrainOptions
 from data_loaders import create_data_loader
 from models.SOG_model import SOGModel
-import util.util as util
+import util.latent_space as latent_space
 from util.visualizer import Visualizer
 #from torchvision.utils import make_grid
 import util.latent_space as ls
@@ -79,8 +79,8 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
 
         # display output images
         if save_fake:
-            visuals = OrderedDict([('Real Data', ls.make_grid(data)),
-                                   ('Synthesized Data (Reconstructed)', ls.make_grid(generated.data))])
+            visuals = OrderedDict([('Real Data', latent_space.make_grid(data/2+.5)),
+                                   ('Synthesized Data (Reconstructed)', latent_space.make_grid(generated.data/2+.5))])
             visualizer.display_current_results(visuals, epoch, total_steps)
 
         # save latest model
