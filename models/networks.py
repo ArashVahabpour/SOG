@@ -108,17 +108,18 @@ class Deconv(nn.Module):
         model = []
 
         for i in range(opt.n_deconv):
-            last_layer = i == opt.n_deconv - 1 and opt.n_conv == 0
+            last_deconv = i == opt.n_deconv - 1
+            last_layer = last_deconv and opt.n_conv == 0
 
             mult = 2 ** (opt.n_deconv - 1 - i)
             model += [nn.ConvTranspose2d(opt.ngf * mult if i else opt.n_latent,
-                                            opt.ngf * mult // 2 if not last_layer else opt.nc,
+                                            opt.ngf * mult // 2 if not last_deconv else (opt.nc if last_layer else opt.ngf),
                                             kernel_size=4,
                                             stride=2 if i else 1,
                                             padding=1 if i else 0,
                                             bias=False)]
             if not last_layer:
-                model += [norm_layer(opt.ngf * mult), activation]
+                model += [norm_layer(opt.ngf * mult // 2 if not last_deconv else opt.ngf), activation]
 
         for i in range(opt.n_conv):
             last_layer = i == opt.n_conv - 1
