@@ -3,6 +3,9 @@ from models.losses import VGGLoss
 
 
 class BaseSearch:
+    # match criterion is the loss that initially searches 
+    # to find the best matching image (ususally lighter than what we backprop with)
+    
     def __init__(self, match_criterion):
         self.opt = None
         self.sog_model = None
@@ -20,6 +23,7 @@ class BaseSearch:
             raise NotImplementedError('match criterion {} is not implemented!'.format(match_criterion))
 
     def initialize(self, opt, sog_model):
+        #TODO: Fix loop between sog_model and latent_optimizers
         self.opt = opt
         self.sog_model = sog_model
 

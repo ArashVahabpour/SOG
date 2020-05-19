@@ -35,8 +35,10 @@ dataset = data_loader.dataset
 dataset_size = len(dataset)
 print('#training images = %d' % dataset_size)
 
+# instantiate model
 sog_model = SOGModel(opt)
 visualizer = Visualizer(opt)
+# custom function to find latent Z
 optimizer = sog_model.optimizer
 
 total_steps = (start_epoch - 1) * dataset_size + epoch_iter
@@ -45,16 +47,18 @@ display_delta = total_steps % opt.display_freq
 print_delta = total_steps % opt.print_freq
 save_delta = total_steps % opt.save_latest_freq
 
+# decay rate 
 for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
     epoch_start_time = time.time()
     if epoch != start_epoch:
         epoch_iter = epoch_iter % dataset_size
+    # unsupervized so throw away label 
     for _, (data, _) in enumerate(data_loader, start=epoch_iter):
         if total_steps % opt.print_freq == print_delta:
             iter_start_time = time.time()
         total_steps += opt.batch_size
         epoch_iter += opt.batch_size
-        # whether to collect output images
+        # whether to collect output images to visulize in html
         save_fake = total_steps % opt.display_freq == display_delta
 
         data = data.to(opt.device)

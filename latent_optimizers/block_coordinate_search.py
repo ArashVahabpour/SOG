@@ -16,13 +16,14 @@ class BlockCoordinateSearch(BaseSearch):
     def _sample(self, old_z, block_idx):
         """
         Takes the best codes and perturbs
+        Take old optimim code and repeat code 'latent_batch_size' times 
+        Then sample 'block_size' blocks from a normal distribution
 
         Args:
             old_z: batch_size x n_latent
         Returns:
             new_z: batch_size x latent_batch_size x n_latent
         """
-
         new_z = old_z.unsqueeze(1).repeat(1, self.opt.latent_batch_size, 1)
         new_z[:, :, block_idx * self.opt.block_size:(block_idx + 1) * self.opt.block_size].normal_()
 
@@ -30,7 +31,7 @@ class BlockCoordinateSearch(BaseSearch):
 
     def optimize(self, real):
         """
-        Find the loss between the optimal fake data_loaders and the real data_loaders.
+        Find the loss between the optimal fake data and the real data.
 
         Args:
             real: batch_size x dim_1 x ... x dim_k
@@ -40,8 +41,9 @@ class BlockCoordinateSearch(BaseSearch):
         """
 
         batch_size = real.shape[0]  # to accommodate for the end of the dataset when batchsize might change
+        #TODO: Perhaps we can initilize from best Z of last epoch or normal 
         best_z = torch.zeros(batch_size, self.opt.n_latent, device=self.opt.device)
-
+        # Go back over the latent vector and re-search 
         for round_idx, block_idx in itertools.product(range(self.opt.n_rounds),
                                                       range(self.opt.n_latent // self.opt.block_size)):
             # batch_size x latent_batch_size x n_latent
@@ -68,7 +70,7 @@ class BlockCoordinateSearch(BaseSearch):
 
             # batch_size x latent_batch_size x -1
             loss = loss.reshape([*all_shape[:2], -1])
-
+            # mean over pixel losses 
             # batch_size x latent_batch_size
             loss = loss.mean(dim=2)
 
