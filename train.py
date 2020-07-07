@@ -8,7 +8,8 @@ from data_loaders import create_data_loader
 from models.SOG_model import SOGModel
 import util.latent_space as latent_space
 from util.visualizer import Visualizer
-
+#from torchvision.utils import make_grid
+import util.latent_space as ls
 
 def lcm(a, b): return abs(a * b) / gcd(a, b) if a and b else 0
 
@@ -47,12 +48,12 @@ display_delta = total_steps % opt.display_freq
 print_delta = total_steps % opt.print_freq
 save_delta = total_steps % opt.save_latest_freq
 
-# decay rate 
+# decay rate
 for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
     epoch_start_time = time.time()
     if epoch != start_epoch:
         epoch_iter = epoch_iter % dataset_size
-    # unsupervized so throw away label 
+    # unsupervized so throw away label
     for _, (data, _) in enumerate(data_loader, start=epoch_iter):
         if total_steps % opt.print_freq == print_delta:
             iter_start_time = time.time()

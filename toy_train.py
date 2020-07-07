@@ -2,29 +2,39 @@
 
 import torch
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import sklearn
 import sklearn.datasets
 from sklearn.utils import shuffle as util_shuffle
 import argparse
 import os
-
+from util.visulize_flow import visualize_transform
+import math
+from skimage import color
+from imageio import imread
 
 n_samples = 10000
 
 parser = argparse.ArgumentParser('Continuous Normalizing Flow')
 
 parser.add_argument(
-    '--data', choices=['swissroll', '8gaussians', 'pinwheel', 'circles', 'moons', '2spirals', 'checkerboard', 'rings'],
+    '--data', choices=['swissroll', '8gaussians', 'pinwheel', 'circles', 'moons', '2spirals', 'checkerboard', 'rings','bezos'],
     type=str, default='pinwheel'
 )
 parser.add_argument('--save', type=str, default='pinwheel')
 parser.add_argument('--batch_size', type=int, default=128)
+parser.add_argument('--test_batch_size', type=int, default=1024)
 parser.add_argument('--latent_batch_size', type=int, default=1024*4)
 parser.add_argument('--niters', type=int, default=100001)
 parser.add_argument('--viz_freq', type=int, default=1000)
+parser.add_argument('--val_freq', type=int, default=1000)
 parser.add_argument('--lr', type=float, default=1e-4)
 parser.add_argument('--weight_decay', type=float, default=0)
+parser.add_argument('--gpu', type=int, default=0)
+
+
 args = parser.parse_args()
 
 def create_blobs(n_modes):
@@ -176,17 +186,73 @@ def inf_train_gen(data, rng=None, batch_size=200):
         x = rng.rand(batch_size) * 5 - 2.5
         y = np.sin(x) * 2.5
         return np.stack((x, y), 1)
+    elif data == 'bezos':
+        path = '/home/arche/PycharmProjects/Feature_Discovery/'
+        image= color.rgb2gray(imread(os.path.join(path,'bezos.jpg')))
+        image = image[:,75:553]
+        image_norm =(1 - image)/(1-image).sum()
+        n, m =image_norm.shape
+        rand = np.random.choice(n*m, size=batch_size, replace=True, p=np.ndarray.flatten(image_norm))
+        row = rand//n
+        col = rand%m
+        row_pos = row.astype(np.float32)/max(row)
+        col_pos = col.astype(np.float32)/max(col)
+        return np.stack((col_pos-col_pos.mean(),row_pos-row_pos.mean())).T
     else:
         return inf_train_gen("8gaussians", rng, batch_size)
 
+def get_transforms(model):
 
+    def sample_fn(z, logpz=None):
+        if logpz is not None:
+            return model(z)
+        else:
+            return model(z)
+
+    def density_fn(x, logpx=None):
+        if logpx is not None:
+            return model(x)
+        else:
+            return model(x)
+
+    return sample_fn, density_fn
+
+def standard_normal_logprob(z):
+    logZ = -0.5 * math.log(2 * math.pi)
+    return logZ - z.pow(2) / 2
 # %%
+def save_checkpoint(state, save, epoch):
+    if not os.path.exists(save):
+        os.makedirs(save)
+    filename = os.path.join(save, 'checkpt-{}.pth'.format(epoch))
+    torch.save(state, filename)
+
+def compute_loss(args, model, batch_size=None):
+    if batch_size is None: batch_size = args.batch_size
+
+    # load data
+    x = inf_train_gen(args.data, batch_size=batch_size)
+    x = torch.from_numpy(x).type(torch.float32).to(device)
+    zero = torch.zeros(x.shape[0], 1).to(x)
+
+    # transform to z
+    z = model(x)
+    del x
+    # compute log q(z)
+    logpz = standard_normal_logprob(z).sum(1, keepdim=True)
+
+    logpx = logpz
+    loss = -torch.mean(logpx)
+    del z
+    return loss
 
 # y, modes = create_blobs(4); n_epochs = 100  # 4 blobs
 # y, modes = create_blobs(360); n_epochs = 100  # ring
+## This is not actually batch size its actually sample size
 y = inf_train_gen(args.data,batch_size=100000)
 # y, modes = create_spirals(2);
 n_epochs = 300
+device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
 
 # %%
 
@@ -196,7 +262,7 @@ n_epochs = 300
 
 # %%
 
-y = torch.from_numpy(y).float().cuda('cuda:0')
+y = torch.from_numpy(y).float().cuda(device)
 
 # %%
 
@@ -232,26 +298,29 @@ model = torch.nn.Sequential(
     torch.nn.Linear(H, D_out),
 )
 
-model.cuda('cuda:0')
+model.cuda(device)
 # %%
 
 params = list(model.parameters())
 
-# optimizer = torch.optim.Adam(params, betas=(0.5, 0.999))
-optimizer = torch.optim.Adamax(params, lr=args.lr, weight_decay=args.weight_decay)
-loss_fn = torch.nn.MSELoss(reduction='none')
+optimizer = torch.optim.Adam(params, betas=(0.5, 0.999))
+#optimizer = torch.optim.Adamax(params, lr=args.lr, weight_decay=args.weight_decay)
+loss_fn = torch.nn.L1Loss(reduction='none') #torch.nn.MSELoss(reduction='none')
 
 # %%
+# Perhaps try without replacement 
+# Also add the old visulization to the plots
 
 loss_log = []
-
+best_loss = float('inf')
 current_epoch_losses = []
 # pwd = os.getcwd()
 for itr in range(args.niters):
-    rand_idx = np.random.randint(low=0, high=n_samples, size=batch_size)
+    rand_idx = np.random.randint(low=0, high=n_samples, size=args.batch_size)
 
     x_train = sample_latent_codes(batch_size * latent_batch_size)
-    x_train = x_train.cuda('cuda:0')
+    # torch.cuda.synchronize()
+    x_train = x_train.cuda(device)
     # y = inf_train_gen(args.data,batch_size=batch_size)
     # y = torch.from_numpy(y).float()
     y_train = y[rand_idx].repeat(latent_batch_size, 1)
@@ -261,7 +330,6 @@ for itr in range(args.niters):
 
     # Zero the gradients before running the backward pass.
     optimizer.zero_grad()
-
     selective_loss = loss_all_modes.mean(dim=1).reshape(latent_batch_size, batch_size).min(dim=0)[0].sum()
     selective_loss.backward()
 
@@ -271,22 +339,59 @@ for itr in range(args.niters):
 
     # loss_log.append(torch.tensor(current_epoch_losses).mean().detach().cpu().numpy())
 
+    # if itr % args.viz_freq == 0 or itr == args.niters:
+    #     x_test = sample_latent_codes(n_samples)
+    #     x_test = x_test.cuda(device)
+    #     y_pred = model(x_test).detach().cpu().numpy()
+    #     # y_pred = y_pred.to(device)
+    #     del x_test
+    #     fig = plt.figure()
+    #     plt.scatter(y_pred[:, 0], y_pred[:, 1], marker='.', s=0.1)
+    #     #plt.aixis('equal')
+    #     # plt.show()
+    #     dir =  os.path.join('results/'+args.save)
+    #     if not os.path.exists(dir):
+    #         os.mkdir(dir)
+    #     fig_filename = os.path.join(dir, '{:04d}.png'.format(itr))
+    #     fig.savefig(fig_filename)
+    #     plt.close(fig)
+    #     del y_pred
+#    if itr % args.val_freq == 0 or itr == args.niters:
+#        torch.cuda.synchronize()
+#        with torch.no_grad():
+#            model.eval()
+#            test_loss = compute_loss(args, model, batch_size=args.test_batch_size)
+#
+#            if test_loss.item() < best_loss:
+#                best_loss = test_loss.item()
+#                dir =  os.path.join('results/'+args.save)
+#                if not os.path.exists(dir):
+#                    os.mkdir(dir)
+#                # torch.save({
+#                #     'args': args,
+#                #     'state_dict': model.state_dict(),
+#                # }, os.path.join(args.save, 'checkpt.pth'))
+#                save_checkpoint(model.state_dict(),dir+'/checkpts/',itr)
+#            model.train()
+
     if itr % args.viz_freq == 0 or itr == args.niters:
-        x_test = sample_latent_codes(n_samples)
-        x_test = x_test.cuda('cuda:0')
-        y_pred = model(x_test).detach().cpu().numpy()
-        # y_pred = y_pred.to('cuda:0')
-        del x_test
-        fig = plt.figure()
-        plt.scatter(y_pred[:, 0], y_pred[:, 1], marker='.', s=0.1)
-        plt.axis('equal')
-        # plt.show()
-        dir =  os.path.join('results/'+args.save)
-        if not os.path.exists(dir):
-            os.mkdir(dir)
-        fig_filename = os.path.join(dir, '{:04d}.jpg'.format(itr))
-        fig.savefig(fig_filename)
-        plt.close('all')
-        del y_pred
+        torch.cuda.synchronize()
+        with torch.no_grad():
+            model.eval()
+            p_samples = sample_latent_codes(n_samples)
+            p_samples = p_samples.cuda(device)
+            sample_fn, density_fn = get_transforms(model)
 
-
+            plt.figure(figsize=(9, 3))
+            visualize_transform(
+                p_samples, torch.randn, standard_normal_logprob, transform=sample_fn, inverse_transform=None,
+                samples=True, npts=200, device=device
+            )
+            dir =  os.path.join('results/'+args.save)
+            if not os.path.exists(dir):
+                os.mkdir(dir)
+            fig_filename = os.path.join(dir, '{:04d}.jpg'.format(itr))
+            plt.savefig(fig_filename)
+            plt.close()
+            model.train()
+            del p_samples
