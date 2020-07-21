@@ -1,3 +1,25 @@
+# Arash's Readme
+
+## Test Options
+DIV2K
+
+```--dataroot  /home/shared/datasets/arash/div2k  --model  colorization  --gpu_ids  0,1  --input_nc  1  --output_nc  2  --batch_size  2  --samples_per_dim  3  --name  colorization_div2k  --num_test  100  --grid_width  4  --epoch  50```
+
+Cars
+
+```--dataroot  /home/shared/datasets/arash/stanford_cars  --model  colorization  --gpu_ids  0,1  --input_nc  1  --output_nc  2  --batch_size  2  --samples_per_dim  3  --name  colorization_cars  --num_test  100  --grid_width  4  --epoch  50```
+
+
+## Train Options
+DIV2K
+
+```--dataroot /home/shared/datasets/arash/div2k --model colorization --gpu_ids 0,1 --input_nc 1 --output_nc 2 --batch_size 2 --samples_per_dim 3 --name colorization_div2k```
+
+Cars
+
+```--dataroot /home/shared/datasets/arash/stanford_cars --model colorization --gpu_ids 0,1 --input_nc 1 --output_nc 2 --batch_size 2 --samples_per_dim 3 --name colorization_cars```
+
+---
 <img src='imgs/horse2zebra.gif' align="right" width=384>
 
 <br><br><br>
