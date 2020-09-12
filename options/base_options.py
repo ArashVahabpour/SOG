@@ -12,14 +12,14 @@ class BaseOptions:
         self.parser.add_argument('--name', type=str, default='mnist',
                                  help='name of the experiment. It decides where to store samples and models')
         self.parser.add_argument('--dataset', type=str, default='mnist',
-                                 help='name of the predefined dataset: e.g. mnist, emnist, fashion-mnist, celeba')
+                                 help='name of the predefined dataset: e.g. mnist, emnist, fashion-mnist, celeba, power, gas, hepmass, miniboone, bsds300')
         self.parser.add_argument('--normalize_data', action='store_true', help='if dataset is normalized to mean 0 and std 1')
 
         self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         self.parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
-        self.parser.add_argument('--net_type', type=str, default='deconv', help='which network to use: e.g. deconv, mlp')
+        self.parser.add_argument('--net_type', type=str, default='deconv', help='which network to use: e.g. deconv, mlp, flat_mlp.')
         self.parser.add_argument('--norm_type', type=str, default='instance', help='instance normalization or batch normalization')
-        self.parser.add_argument('--last_activation', type=str, default='sigmoid', help='last layer activation')  # todo link to normalization
+        self.parser.add_argument('--last_activation', type=str, default='sigmoid', help='last layer activation: e.g. sigmoid, tanh, none')  # todo link to normalization
         self.parser.add_argument('--which_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
 
         # input/output sizes
@@ -50,16 +50,13 @@ class BaseOptions:
 
         # latent optimizers
         self.parser.add_argument('--latent_optimizer', type=str, default='bcs', help='method to find best latent code')
-        self.parser.add_argument('--criterion', type=str, default='l1', help='optimization loss function')
+        self.parser.add_argument('--criterion', type=str, default='l1', help='optimization loss function: e.g. l1, mse')
 
         # block coordinate search
         self.parser.add_argument('--block_size', type=int, default=2, help='size of coordinate search blocks')
         self.parser.add_argument('--n_rounds', type=int, default=1, help='number of coordinate search rounds')
         self.parser.add_argument('--samples_per_dim', type=int, default=32, help='number of samples per dimension')
-        self.parser.add_argument('--match_criterion', type=str, default='l1', help='loss function used for finding the matching code')
-
-        # lbfgs
-        self.parser.add_argument('--num_lbfgs_steps', type=int, default=100, help='number of lbfgs steps')
+        self.parser.add_argument('--match_criterion', type=str, default='l1', help='loss function used for finding the matching code: e.g. l1, mse')
 
     def parse(self, save=True):
         self.opt = self.parser.parse_args()

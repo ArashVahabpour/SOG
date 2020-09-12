@@ -4,14 +4,14 @@ from PIL import Image
 
 help_msg = """
 The dataset can be downloaded from https://cityscapes-dataset.com.
-Please download the datasets [gtFine_trainvaltest.zip] and [leftImg8bit_trainvaltest.zip] and unzip them.
+Please download the tabular [gtFine_trainvaltest.zip] and [leftImg8bit_trainvaltest.zip] and unzip them.
 gtFine contains the semantics segmentations. Use --gtFine_dir to specify the path to the unzipped gtFine_trainvaltest directory. 
 leftImg8bit contains the dashcam photographs. Use --leftImg8bit_dir to specify the path to the unzipped leftImg8bit_trainvaltest directory. 
 The processed images will be placed at --output_dir.
 
 Example usage:
 
-python prepare_cityscapes_dataset.py --gitFine_dir ./gtFine/ --leftImg8bit_dir ./leftImg8bit --output_dir ./datasets/cityscapes/
+python prepare_cityscapes_dataset.py --gitFine_dir ./gtFine/ --leftImg8bit_dir ./leftImg8bit --output_dir ./tabular/cityscapes/
 """
 
 def load_resized_img(path):
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('--leftImg8bit_dir', type=str, required=True,
                         help='Path to the Cityscapes leftImg8bit_trainvaltest directory.')
     parser.add_argument('--output_dir', type=str, required=True,
-                        default='./datasets/cityscapes',
+                        default='./tabular/cityscapes',
                         help='Directory the output images will be written to.')
     opt = parser.parse_args()
 

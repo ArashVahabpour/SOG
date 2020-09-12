@@ -27,20 +27,15 @@ class SOGModel(torch.nn.Module):
         # Criterion which we use to backprop
         if opt.criterion == 'l1':
             self.criterion = torch.nn.L1Loss()
-        elif opt.criterion == 'l1_asym':  # TODO: REMOVE, DEBUG.
-            F = torch.nn.functional
-            self.criterion = lambda x, y: (5 * F.relu(x - y) + F.relu(y - x)).mean()
+        elif opt.criterion == 'mse':
+            self.criterion = torch.nn.MSELoss()
         elif opt.criterion == 'vgg':
             self.criterion = VGGLoss()
-        elif opt.criterion == 'vgg_l1':
-            self.criterion = lambda x,y: torch.nn.L1Loss()(x,y) + VGGLoss()(x,y)
         else:
             raise NotImplementedError('Criterion {} is not implemented!'.format(opt.criterion))
 
         if opt.latent_optimizer == 'bcs':
             self.latent_optimizer = latent_optimizers.BlockCoordinateSearch(opt.match_criterion)
-        elif opt.latent_optimizer == 'lbfgs':
-            self.latent_optimizer = latent_optimizers.LBFGS(opt.match_criterion, opt.num_lbfgs_steps)
         else:
             raise NotImplementedError('latent optimizer {} not implemented!'.format(opt.latent_optimizer == 'bcs'))
         # TODO: analyze and remove dependency cycle between latent_optimizer and SOG_model, refer to https://stackoverflow.com/questions/40532274/two-python-class-instances-have-a-reference-to-each-other  / https://www.google.com/search?q=is+it+right+practice+if+two+classes+have+reference+to+one+another+python&oq=is+it+right+practice+if+two+classes+have+reference+to+one+another+python&aqs=chrome..69i57.17847j0j7&sourceid=chrome&ie=UTF-8
@@ -84,7 +79,7 @@ class SOGModel(torch.nn.Module):
         return loss, fake if infer else None
 
     def decode(self, z, requires_grad=False):
-        # TODO: when to toggle benchmark?
+        # TODO: when to toggle benchmark?z.
         # https://stackoverflow.com/questions/58961768/set-torch-backends-cudnn-benchmark-true-or-not
         # directly give model a Z to generate image 
 

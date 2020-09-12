@@ -12,10 +12,10 @@ if [[ $FILE == "cityscapes" ]]; then
 fi
 
 echo "Specified [$FILE]"
-URL=https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/$FILE.zip
-ZIP_FILE=./datasets/$FILE.zip
-TARGET_DIR=./datasets/$FILE/
+URL=https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/tabular/$FILE.zip
+ZIP_FILE=./tabular/$FILE.zip
+TARGET_DIR=./tabular/$FILE/
 wget -N $URL -O $ZIP_FILE
 mkdir $TARGET_DIR
-unzip $ZIP_FILE -d ./datasets/
+unzip $ZIP_FILE -d ./tabular/
 rm $ZIP_FILE

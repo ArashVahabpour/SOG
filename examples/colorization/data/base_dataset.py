@@ -1,4 +1,4 @@
-"""This module implements an abstract base class (ABC) 'BaseDataset' for datasets.
+"""This module implements an abstract base class (ABC) 'BaseDataset' for tabular.
 
 It also includes common transformation functions (e.g., get_transform, __scale_width), which can be later used in subclasses.
 """
@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 
 
 class BaseDataset(data.Dataset, ABC):
-    """This class is an abstract base class (ABC) for datasets.
+    """This class is an abstract base class (ABC) for tabular.
 
     To create a subclass, you need to implement the following four functions:
     -- <__init__>:                      initialize the class, first call BaseDataset.__init__(self, opt).

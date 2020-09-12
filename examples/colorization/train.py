@@ -1,7 +1,7 @@
 """General-purpose training script for image-to-image translation.
 
 This script works for various models (with option '--model': e.g., pix2pix, cyclegan, colorization) and
-different datasets (with option '--dataset_mode': e.g., aligned, unaligned, single, colorization).
+different tabular (with option '--dataset_mode': e.g., aligned, unaligned, single, colorization).
 You need to specify the dataset ('--dataroot'), experiment name ('--name'), and model ('--model').
 
 It first creates model, dataset, and visualizer given the option.
@@ -10,9 +10,9 @@ The script supports continue/resume training. Use '--continue_train' to resume y
 
 Example:
     Train a CycleGAN model:
-        python train.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
+        python train.py --dataroot ./tabular/maps --name maps_cyclegan --model cycle_gan
     Train a pix2pix model:
-        python train.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
+        python train.py --dataroot ./tabular/facades --name facades_pix2pix --model pix2pix --direction BtoA
 
 See options/base_options.py and options/train_options.py for more training options.
 See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md

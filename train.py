@@ -34,7 +34,7 @@ opt.print_freq = lcm(opt.print_freq, opt.batch_size)
 data_loader = create_data_loader(opt)
 dataset = data_loader.dataset
 dataset_size = len(dataset)
-print('#training images = %d' % dataset_size)
+print('#training samples = {}'.format(dataset_size))
 
 # instantiate model
 sog_model = SOGModel(opt)

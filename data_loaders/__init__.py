@@ -2,6 +2,7 @@ import torch
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.datasets import fetch_olivetti_faces
+from .tabular import POWER, GAS, HEPMASS, MINIBOONE, BSDS300
 import numpy as np
 from PIL.ImageFilter import MinFilter, MaxFilter
 
@@ -13,6 +14,11 @@ def create_data_loader(opt):
         'fashion-mnist': _fashion_mnist,
         'olivetti-faces': _olivetti_faces,
         'celeba': _celeba,
+        'power': _tabular,
+        'gas': _tabular,
+        'hepmass': _tabular,
+        'miniboone': _tabular,
+        'bsds300': _tabular,
     }
     func = switcher.get(opt.dataset, None)
 
@@ -113,3 +119,23 @@ def _celeba(opt):
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)  # todo , num_workers=workers
 
     return data_loader
+
+
+def _tabular(opt):
+    switcher = {
+        'power': POWER,
+        'gas': GAS,
+        'hepmass': HEPMASS,
+        'miniboone': MINIBOONE,
+        'bsds300': BSDS300,
+    }
+    dataset_class = switcher.get(opt.dataset)(opt)
+
+    data_numpy = dataset_class.trn if opt.is_train else dataset_class.tst  # elif val: dataset_numpy.val
+    tensor_x = torch.tensor(data_numpy.x)
+    opt.n_features = int(tensor_x.shape[1])  # number of features is used in defining the architecture of `FlatMLP` networks. see `networks.py`
+    dataset = TensorDataset(tensor_x, torch.empty([tensor_x.shape[0], 0]))
+    data_loader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
+
+    return data_loader
+

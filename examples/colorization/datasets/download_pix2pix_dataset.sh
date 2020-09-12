@@ -13,10 +13,10 @@ fi
 
 echo "Specified [$FILE]"
 
-URL=http://efrosgans.eecs.berkeley.edu/pix2pix/datasets/$FILE.tar.gz
-TAR_FILE=./datasets/$FILE.tar.gz
-TARGET_DIR=./datasets/$FILE/
+URL=http://efrosgans.eecs.berkeley.edu/pix2pix/tabular/$FILE.tar.gz
+TAR_FILE=./tabular/$FILE.tar.gz
+TARGET_DIR=./tabular/$FILE/
 wget -N $URL -O $TAR_FILE
 mkdir -p $TARGET_DIR
-tar -zxvf $TAR_FILE -C ./datasets/
+tar -zxvf $TAR_FILE -C ./tabular/
 rm $TAR_FILE

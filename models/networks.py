@@ -28,6 +28,8 @@ def get_activation_layer(activation_type):
         activation_layer = nn.Sigmoid()
     elif activation_type == 'tanh':
         activation_layer = nn.Tanh()
+    elif activation_type == 'none':
+        activation_layer = None
     else:
         raise NotImplementedError('normalization layer {} is not found'.format(activation_type))
     return activation_layer
@@ -38,6 +40,8 @@ def define_G(opt):
         netG = Deconv(opt)
     elif opt.net_type == 'mlp':
         netG = MLP(opt)
+    elif opt.net_type == 'flat_mlp':
+        netG = FlatMLP(opt)
     else:
         raise NotImplementedError('generator of type {} not implemented!'.format(opt.net_type))
 
@@ -130,7 +134,8 @@ class Deconv(nn.Module):
                 model += [norm_layer(opt.ngf), activation]
 
         # last layer
-        model.append(last_activation)
+        if last_activation is not None:
+            model.append(last_activation)
 
         self.model = nn.Sequential(*model)
         #todo check model layers for combination of deconv and conv
@@ -144,7 +149,7 @@ class Deconv(nn.Module):
 
 
 class MLP(nn.Module):
-    # Multi-Layer Perceptron (Fully Connected) Model
+    # Multi-Layer Perceptron (Fully Connected) Model; Used for Image Data
     # architecture: n_latent --> n_hidden --> n_hidden --> ... --> n_hidden --> img_size^2
     def __init__(self, opt):
         super().__init__()
@@ -153,18 +158,51 @@ class MLP(nn.Module):
 
         assert (opt.mlp_depth >= 0)
         activation = nn.ReLU()
-        last_activation = nn.Sigmoid()  # TODO change this into an option
+        last_activation = get_activation_layer(opt.last_activation)
 
         model = []
 
         for i in range(opt.mlp_depth):
-            last_layer = i + 1 == opt.n_deconv
+            last_layer = i + 1 == opt.mlp_depth
 
-            model += [torch.nn.Linear(opt.n_hidden if i else opt.n_latent,
-                                      opt.nc * opt.img_size ** 2 if last_layer else opt.n_hidden),
-                      torch.nn.ReLU(), last_activation if last_layer else activation]
+            model.append(torch.nn.Linear(opt.n_hidden if i else opt.n_latent,
+                                         opt.nc * opt.img_size ** 2 if last_layer else opt.n_hidden))
+
+            if not last_layer:
+                model.append(activation)
+            elif last_activation is not None:
+                model.append(last_activation)
 
         self.model = nn.Sequential(*model)
 
     def forward(self, z):
         return self.model(z).view(self.output_shape)
+
+
+class FlatMLP(nn.Module):
+    # Multi-Layer Perceptron (Fully Connected) Model; Used for Tabular Data
+    # architecture: n_latent --> n_hidden --> n_hidden --> ... --> n_hidden --> n_features
+    def __init__(self, opt):
+        super().__init__()
+
+        assert (opt.mlp_depth >= 0)
+        activation = nn.ReLU()
+        last_activation = get_activation_layer(opt.last_activation)
+
+        model = []
+
+        for i in range(opt.mlp_depth):
+            last_layer = i + 1 == opt.mlp_depth
+
+            model.append(torch.nn.Linear(opt.n_hidden if i else opt.n_latent,
+                                         opt.n_features if last_layer else opt.n_hidden))
+
+            if not last_layer:
+                model.append(activation)
+            elif last_activation is not None:
+                model.append(last_activation)
+
+        self.model = nn.Sequential(*model)
+
+    def forward(self, z):
+        return self.model(z)

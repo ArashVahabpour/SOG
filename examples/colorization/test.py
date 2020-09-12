@@ -8,10 +8,10 @@ It then runs inference for --num_test images and save results to an HTML file.
 
 Example (You need to train models first or download pre-trained models from our website):
     Test a CycleGAN model (both sides):
-        python test.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
+        python test.py --dataroot ./tabular/maps --name maps_cyclegan --model cycle_gan
 
     Test a CycleGAN model (one side only):
-        python test.py --dataroot datasets/horse2zebra/testA --name horse2zebra_pretrained --model test --no_dropout
+        python test.py --dataroot tabular/horse2zebra/testA --name horse2zebra_pretrained --model test --no_dropout
 
     The option '--model test' is used for generating CycleGAN results only for one side.
     This option will automatically set '--dataset_mode single', which only loads the images from one set.
@@ -20,7 +20,7 @@ Example (You need to train models first or download pre-trained models from our 
     Use '--results_dir <directory_path_to_save_result>' to specify the results directory.
 
     Test a pix2pix model:
-        python test.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
+        python test.py --dataroot ./tabular/facades --name facades_pix2pix --model pix2pix --direction BtoA
 
 See options/base_options.py and options/test_options.py for more test options.
 See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
