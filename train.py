@@ -54,16 +54,21 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
     if epoch != start_epoch:
         epoch_iter = epoch_iter % dataset_size
     # unsupervized so throw away label
-    for _, (data, _) in enumerate(data_loader, start=epoch_iter):
+    for _, (data_y, data_x) in enumerate(data_loader, start=epoch_iter):
         if total_steps % opt.print_freq == print_delta:
             iter_start_time = time.time()
         total_steps += opt.batch_size
         epoch_iter += opt.batch_size
-        # whether to collect output images to visulize in html
+        # whether to collect output images to visualize in html
         save_fake = total_steps % opt.display_freq == display_delta
 
-        data = data.to(opt.device)
-        loss, generated = sog_model(data, infer=save_fake)
+        data_y = data_y.to(opt.device)
+
+        if opt.is_conditional:
+            data_x = data_x.to(opt.device)
+        else:
+            data_x = None
+        loss, generated = sog_model(data_y, data_x, infer=save_fake)
 
         # update generator weights
         optimizer.zero_grad()
@@ -77,11 +82,12 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
             visualizer.print_current_loss(epoch, epoch_iter, loss, t)  # loss.data_loaders.item?! TODO
             visualizer.plot_current_loss(loss, total_steps)
 
-        # display output images
-        if save_fake:
-            visuals = OrderedDict([('Real Data', latent_space.make_grid(data/2+.5)),
-                                   ('Synthesized Data (Reconstructed)', latent_space.make_grid(generated.data/2+.5))])
-            visualizer.display_current_results(visuals, epoch, total_steps)
+        # TODO: introduce parameter for image data
+        # # display output images
+        # if save_fake:
+        #     visuals = OrderedDict([('Real Data', latent_space.make_grid(data_y / 2 + .5)),
+        #                            ('Synthesized Data (Reconstructed)', latent_space.make_grid(generated.data/2+.5))])
+        #     visualizer.display_current_results(visuals, epoch, total_steps)
 
         # save latest model
         if total_steps % opt.save_latest_freq == save_delta:

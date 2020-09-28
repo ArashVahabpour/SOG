@@ -5,7 +5,7 @@ from data_loaders import create_data_loader
 from models.SOG_model import SOGModel
 from util import util, latent_space
 from util.visualizer import Visualizer
-from util import kde, html
+from util import kde, html, gym
 
 opt = TestOptions().parse(save=False)
 # opt.batchSize = 1  # test code only supports batchSize = 1  #TODO keep to beat batchnorm
@@ -19,6 +19,9 @@ if opt.dataset in ['power', 'gas', 'hepmass', 'miniboone', 'bsds300']:  # if tab
     kde = kde.KDE(opt, sog_model, n_parzen=10000)
     print('{:.2f}'.format(kde(data_loader)))
 
+elif opt.dataset == 'gym':
+    gym.control_env(opt)
+
 else:  # if image dataset
     visualizer = Visualizer(opt)
 
@@ -31,7 +34,7 @@ else:  # if image dataset
     #     if idx > opt.how_many:
     #         break
     #
-    #     _, generated = sog_model(data.to(opt.device), True)
+    #     _, generated = sog_model(data.to(opt.device), infer=True)
     #
     #     visuals = OrderedDict([('Real Data', util.make_grid(data)),
     #                            ('Synthesized Data (Reconstructed)', util.make_grid(generated.data))])

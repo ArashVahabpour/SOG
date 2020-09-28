@@ -25,17 +25,19 @@ class SOGModel(torch.nn.Module):
             self.old_lr = opt.lr
             self.optimizer = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
         # Criterion which we use to backprop
-        if opt.criterion == 'l1':
-            self.criterion = torch.nn.L1Loss()
-        elif opt.criterion == 'mse':
-            self.criterion = torch.nn.MSELoss()
-        elif opt.criterion == 'vgg':
-            self.criterion = VGGLoss()
-        else:
+        self.criterion = {
+            'l1': torch.nn.L1Loss,
+            'mse': torch.nn.MSELoss,
+            'vgg': VGGLoss,
+        }.get(opt.criterion, lambda: None)()
+
+        if self.criterion is None:
             raise NotImplementedError('Criterion {} is not implemented!'.format(opt.criterion))
 
         if opt.latent_optimizer == 'bcs':
             self.latent_optimizer = latent_optimizers.BlockCoordinateSearch(opt.match_criterion)
+        elif opt.latent_optimizer == 'ohs':
+            self.latent_optimizer = latent_optimizers.OneHotSearch(opt.match_criterion)
         else:
             raise NotImplementedError('latent optimizer {} not implemented!'.format(opt.latent_optimizer == 'bcs'))
         # TODO: analyze and remove dependency cycle between latent_optimizer and SOG_model, refer to https://stackoverflow.com/questions/40532274/two-python-class-instances-have-a-reference-to-each-other  / https://www.google.com/search?q=is+it+right+practice+if+two+classes+have+reference+to+one+another+python&oq=is+it+right+practice+if+two+classes+have+reference+to+one+another+python&aqs=chrome..69i57.17847j0j7&sourceid=chrome&ie=UTF-8
@@ -64,33 +66,42 @@ class SOGModel(torch.nn.Module):
             except Exception:
                 raise Exception('The network architecture does not match the saved weights')
 
-    def forward(self, real, infer=False):
+    def forward(self, real_y, real_x=None, infer=False):
         # batch_size x n_gaussian
-        best_z = self.latent_optimizer.optimize(real)
+        # TODO unify signature of netG.forward for all possibilities using some base class or sth...
+        best_z = self.latent_optimizer.optimize(real_y, real_x)
 
-        fake = self.netG.forward(best_z)
+        args = (best_z, real_x) if self.opt.is_conditional else (best_z,)
+        fake = self.netG.forward(*args)
 
         # in case we are predicting images with a fully connected net, we have to give it appropriate width and height
         if self.opt.net_type == 'mlp':
-            fake = fake.reshape(real.shape)
+            fake = fake.reshape(real_y.shape)
 
-        loss = self.criterion(fake, real)
+        loss = self.criterion(fake, real_y)
 
         return loss, fake if infer else None
 
-    def decode(self, z, requires_grad=False):
-        # TODO: when to toggle benchmark?z.
-        # https://stackoverflow.com/questions/58961768/set-torch-backends-cudnn-benchmark-true-or-not
-        # directly give model a Z to generate image 
+    def decode(self, z, real_x=None, requires_grad=False):
+        """
+        Generate fake data from a given latent code.
+
+        Returns:
+            y: generated tensor
+
+        """
+        # TODO: when to toggle benchmark?z. https://stackoverflow.com/questions/58961768/set-torch-backends-cudnn-benchmark-true-or-not
+        # TODO unify signature of netG.forward for all possibilities using some base class or sth...
+        args = (z, real_x) if self.opt.is_conditional else (z,)
 
         if requires_grad:
-            y = self.netG(z)
+            y = self.netG(*args)
         else:
             torch.backends.cudnn.benchmark = False
             self.netG.eval()
 
             with torch.no_grad():
-                y = self.netG(z)
+                y = self.netG(*args)
 
             self.netG.train()
             torch.backends.cudnn.benchmark = True

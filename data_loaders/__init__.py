@@ -3,8 +3,7 @@ from torchvision import transforms, datasets
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.datasets import fetch_olivetti_faces
 from .tabular import POWER, GAS, HEPMASS, MINIBOONE, BSDS300
-import numpy as np
-from PIL.ImageFilter import MinFilter, MaxFilter
+import os
 
 
 def create_data_loader(opt):
@@ -19,6 +18,7 @@ def create_data_loader(opt):
         'hepmass': _tabular,
         'miniboone': _tabular,
         'bsds300': _tabular,
+        'gym': _gym,
     }
     func = switcher.get(opt.dataset, None)
 
@@ -66,23 +66,23 @@ def _emnist(opt):
 def _fashion_mnist(opt):
     return DataLoader(
         datasets.FashionMNIST(opt.dataroot, train=True, download=True,
-                        transform=transforms.Compose([
-                            transforms.ToTensor(),
-                            transforms.Lambda(lambda data: 1 - data)  # invert
-                            # transforms.Normalize((0.2860,), (0.3530,))
-                        ])),
+                              transform=transforms.Compose([
+                                  transforms.ToTensor(),
+                                  transforms.Lambda(lambda data: 1 - data)  # invert
+                                  # transforms.Normalize((0.2860,), (0.3530,))
+                                  ])),
         batch_size=opt.batch_size, shuffle=True)
 
 
 def _olivetti_faces(opt):
     # Load the faces datasets
     data = fetch_olivetti_faces()
-    tensor_x = torch.tensor(data.images).unsqueeze(1)  # transform to torch tensor
+    tensor_y = torch.tensor(data.images).unsqueeze(1)  # transform to torch tensor
 
     # dataset_mean, dataset_std = 0.5470, 0.1725
-    # tensor_x = (tensor_x - dataset_mean) / dataset_std  # (tensor_x - tensor_x.mean()) / tensor_x.std()
+    # tensor_y = (tensor_y - dataset_mean) / dataset_std  # (tensor_y - tensor_y.mean()) / tensor_y.std()
 
-    dataset = TensorDataset(tensor_x)
+    dataset = TensorDataset(tensor_y)
     data_loader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
 
     return data_loader
@@ -116,7 +116,7 @@ def _celeba(opt):
                                        transforms.ToTensor(),
                                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                    ]))
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)  # todo , num_workers=workers
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)  # todo, num_workers=workers
 
     return data_loader
 
@@ -132,10 +132,31 @@ def _tabular(opt):
     dataset_class = switcher.get(opt.dataset)(opt)
 
     data_numpy = dataset_class.trn if opt.is_train else dataset_class.tst  # elif val: dataset_numpy.val
-    tensor_x = torch.tensor(data_numpy.x)
-    opt.n_features = int(tensor_x.shape[1])  # number of features is used in defining the architecture of `FlatMLP` networks. see `networks.py`
-    dataset = TensorDataset(tensor_x, torch.empty([tensor_x.shape[0], 0]))
+    tensor_y = torch.tensor(data_numpy.x)
+    opt.n_features = int(tensor_y.shape[1])  # number of features is used in defining the architecture of `FlatMLP` networks. see `networks.py`
+    dataset = TensorDataset(tensor_y, torch.empty([tensor_y.shape[0], 0]))
     data_loader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
 
     return data_loader
 
+
+def _gym(opt):
+    filename = 'trajs_{}.pt'.format(opt.env_name.split('-')[0].lower())
+    data_dir = os.path.join(opt.dataroot, filename)
+    data_dict = torch.load(data_dir)
+
+    # num_traj x traj_len x dim
+    tensor_x = data_dict['states']
+    tensor_y = data_dict['actions']
+
+    # (num_traj * traj_len) x dim
+    tensor_x = tensor_x.reshape(-1, tensor_x.shape[-1])
+    tensor_y = tensor_y.reshape(-1, tensor_y.shape[-1])
+
+    dataset = TensorDataset(tensor_y, tensor_x)
+    data_loader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
+
+    opt.state_dim = int(tensor_x.shape[-1])
+    opt.action_dim = int(tensor_y.shape[-1])
+
+    return data_loader

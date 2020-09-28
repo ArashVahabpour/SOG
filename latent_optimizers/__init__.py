@@ -1,1 +1,2 @@
 from .block_coordinate_search import BlockCoordinateSearch
+from .one_hot_search import OneHotSearch

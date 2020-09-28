@@ -12,12 +12,12 @@ class BaseOptions:
         self.parser.add_argument('--name', type=str, default='mnist',
                                  help='name of the experiment. It decides where to store samples and models')
         self.parser.add_argument('--dataset', type=str, default='mnist',
-                                 help='name of the predefined dataset: e.g. mnist, emnist, fashion-mnist, celeba, power, gas, hepmass, miniboone, bsds300')
+                                 help='name of the predefined dataset: e.g. mnist, emnist, fashion-mnist, celeba, power, gas, hepmass, miniboone, bsds300, gym')
         self.parser.add_argument('--normalize_data', action='store_true', help='if dataset is normalized to mean 0 and std 1')
 
         self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         self.parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
-        self.parser.add_argument('--net_type', type=str, default='deconv', help='which network to use: e.g. deconv, mlp, flat_mlp.')
+        self.parser.add_argument('--net_type', type=str, default='deconv', help='which network to use: e.g. deconv, mlp, flat_mlp, infogail_mlp.')
         self.parser.add_argument('--norm_type', type=str, default='instance', help='instance normalization or batch normalization')
         self.parser.add_argument('--last_activation', type=str, default='sigmoid', help='last layer activation: e.g. sigmoid, tanh, none')  # todo link to normalization
         self.parser.add_argument('--which_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
@@ -49,7 +49,7 @@ class BaseOptions:
         self.parser.add_argument('--mlp_depth', type=int, default=3, help='depth (number of hidden layers)')
 
         # latent optimizers
-        self.parser.add_argument('--latent_optimizer', type=str, default='bcs', help='method to find best latent code')
+        self.parser.add_argument('--latent_optimizer', type=str, default='bcs', help='method to find best latent code: e.g. "bcs" for block coorindate search, or "ohs" for one-hot-search.')
         self.parser.add_argument('--criterion', type=str, default='l1', help='optimization loss function: e.g. l1, mse')
 
         # block coordinate search
@@ -58,27 +58,40 @@ class BaseOptions:
         self.parser.add_argument('--samples_per_dim', type=int, default=32, help='number of samples per dimension')
         self.parser.add_argument('--match_criterion', type=str, default='l1', help='loss function used for finding the matching code: e.g. l1, mse')
 
+        # gym
+        self.parser.add_argument('--radii', type=str, default='-10,10,20', help='radii in circles environment: e.g. -10,10,20')
+        self.parser.add_argument('--env_name', type=str, default='Circles-v0', help='environment to train')
+
     def parse(self, save=True):
         self.opt = self.parser.parse_args()
         self.opt.is_train = self.is_train  # train or test
 
-        assert self.opt.n_latent % self.opt.block_size == 0, 'n_latent must be divisible by block_size'
-        self.opt.latent_batch_size = self.opt.samples_per_dim ** self.opt.block_size
+        if self.opt.latent_optimizer == 'bcs':
+            assert self.opt.n_latent % self.opt.block_size == 0, 'n_latent must be divisible by block_size'
+            self.opt.latent_batch_size = self.opt.samples_per_dim ** self.opt.block_size
+        else:
+            self.opt.latent_batch_size = self.opt.n_latent
 
+        # set gpu ids
         str_ids = self.opt.gpu_ids.split(',')
         self.opt.gpu_ids = []
         for str_id in str_ids:
             int_id = int(str_id)
             if int_id >= 0:
                 self.opt.gpu_ids.append(int_id)
-
-        # set gpu ids
         if len(self.opt.gpu_ids) > 0:
             main_gpu = self.opt.gpu_ids[0]
             torch.cuda.set_device(main_gpu)
             self.opt.device = torch.device('cuda:{}'.format(main_gpu))
         else:
             self.opt.device = torch.device('cpu')
+
+        # in case of imitation learning of a gym environment
+        if self.opt.dataset == 'gym':
+            self.opt.radii = [int(r) for r in self.opt.radii.split(',')]
+
+        # conditional generative model, where some input is provided
+        self.opt.is_conditional = self.opt.dataset == 'gym'
 
         args = vars(self.opt)
 

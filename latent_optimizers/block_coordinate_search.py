@@ -16,11 +16,12 @@ class BlockCoordinateSearch(BaseSearch):
     def _sample(self, old_z, block_idx):
         """
         Takes the best codes and perturbs
-        Take old optimim code and repeat code 'latent_batch_size' times 
+        Take old optimum code and repeat code 'latent_batch_size' times
         Then sample 'block_size' blocks from a normal distribution
 
         Args:
             old_z: batch_size x n_latent
+
         Returns:
             new_z: batch_size x latent_batch_size x n_latent
         """
@@ -29,62 +30,26 @@ class BlockCoordinateSearch(BaseSearch):
 
         return new_z
 
-    def optimize(self, real):
+    def optimize(self, real_y, real_x=None):
         """
         Find the loss between the optimal fake data and the real data.
 
         Args:
-            real: batch_size x dim_1 x ... x dim_k
+            real_y: batch_size x dim_1 x ... x dim_ky
+            real_x: batch_size x dim_1 x ... x dim_kx
 
         Returns:
             best_z: batch_size x n_latent
         """
 
-        batch_size = real.shape[0]  # to accommodate for the end of the dataset when batchsize might change
-        #TODO: Perhaps we can initilize from best Z of last epoch or normal 
+        batch_size = real_y.shape[0]  # to accommodate for the end of the dataset when batchsize might change
+        # TODO: Perhaps we can initialize from best z of last epoch or normal
         best_z = torch.zeros(batch_size, self.opt.n_latent, device=self.opt.device)
         # Go back over the latent vector and re-search 
         for round_idx, block_idx in itertools.product(range(self.opt.n_rounds),
                                                       range(self.opt.n_latent // self.opt.block_size)):
             # batch_size x latent_batch_size x n_latent
             new_z = self._sample(best_z, block_idx)
-
-            # (batch_size * latent_batch_size) x n_latent
-            new_z_r = new_z.reshape(batch_size * self.opt.latent_batch_size, self.opt.n_latent)
-
-            # (batch_size * latent_batch_size) x dim_1 x ... x dim_k
-            torch.cuda.synchronize()  # TODO: fix device input
-            with torch.no_grad():  # no need to store the gradients while searching
-                fake_all = self.sog_model.decode(new_z_r, requires_grad=False)
-
-            # batch_size x latent_batch_size x dim_1 x ... x dim_k
-
-            all_shape = [batch_size, self.opt.latent_batch_size, *real.shape[1:]]
-
-            # batch_size x latent_batch_size x dim_1 x ... x dim_k
-            fake_all = fake_all.reshape(all_shape)
-            real_all = real.unsqueeze(1).expand(all_shape)
-
-            # batch_size x latent_batch_size x dim_1 x ... x dim_k
-            loss = self.match_criterion_no_reduction(real_all, fake_all)
-
-            # batch_size x latent_batch_size x -1
-            loss = loss.reshape([*all_shape[:2], -1])
-            # mean over pixel losses 
-            # batch_size x latent_batch_size
-            loss = loss.mean(dim=2)
-
-            # batch_size
-            _, argmin = loss.min(dim=1)
-
-            # new_z: batch_size x latent_batch_size x n_latent
-            # best_idx: batch_size x 1 x n_latent
-            best_idx = argmin[:, None, None].repeat(1, 1, self.opt.n_latent)
-
-            # batch_size x 1 x n_latent
-            best_z = torch.gather(new_z, 1, best_idx)
-
-            # batch_size x n_latent
-            best_z = best_z.squeeze(1)  # TODO unit test with batch size of 1
+            best_z = self.search_iter(new_z, real_y=real_y, real_x=real_x)
 
         return best_z

@@ -36,13 +36,14 @@ def get_activation_layer(activation_type):
 
 
 def define_G(opt):
-    if opt.net_type == 'deconv':
-        netG = Deconv(opt)
-    elif opt.net_type == 'mlp':
-        netG = MLP(opt)
-    elif opt.net_type == 'flat_mlp':
-        netG = FlatMLP(opt)
-    else:
+    netG = {
+        'deconv': Deconv,
+        'mlp': MLP,
+        'flat_mlp': FlatMLP,
+        'infogail_mlp': InfoGAILMLP,
+    }.get(opt.net_type, None)(opt)
+
+    if netG is None:
         raise NotImplementedError('generator of type {} not implemented!'.format(opt.net_type))
 
     print(netG)
@@ -206,3 +207,29 @@ class FlatMLP(nn.Module):
 
     def forward(self, z):
         return self.model(z)
+
+
+class InfoGAILMLP(nn.Module):
+    # Multi-Layer Perceptron (Fully Connected) Model Used in InfoGAIL paper
+    # https://arxiv.org/pdf/1703.08840.pdf ---> Appendix A
+
+    def __init__(self, opt):
+        super().__init__()
+
+        activation = nn.LeakyReLU()
+
+        self.state_encoder = nn.Sequential(
+            torch.nn.Linear(opt.state_dim, 128),
+            activation,
+            torch.nn.Linear(128, 128),
+        )
+
+        self.latent_encoder = torch.nn.Linear(opt.n_latent, 128)
+
+        self.decoder = nn.Sequential(
+            activation,
+            torch.nn.Linear(128, opt.action_dim)
+        )
+
+    def forward(self, z, obs):
+        return self.decoder(self.state_encoder(obs) + self.latent_encoder(z))
