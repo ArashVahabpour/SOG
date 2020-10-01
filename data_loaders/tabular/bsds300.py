@@ -1,8 +1,6 @@
 import numpy as np
 import h5py
 
-import datasets
-
 
 class BSDS300:
     """

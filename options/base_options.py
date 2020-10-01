@@ -50,7 +50,7 @@ class BaseOptions:
 
         # latent optimizers
         self.parser.add_argument('--latent_optimizer', type=str, default='bcs', help='method to find best latent code: e.g. "bcs" for block coorindate search, or "ohs" for one-hot-search.')
-        self.parser.add_argument('--criterion', type=str, default='l1', help='optimization loss function: e.g. l1, mse')
+        self.parser.add_argument('--criterion', type=str, default='l1', help='optimization loss function: e.g. l1, mse')  # TODO move to train options
 
         # block coordinate search
         self.parser.add_argument('--block_size', type=int, default=2, help='size of coordinate search blocks')
@@ -61,6 +61,8 @@ class BaseOptions:
         # gym
         self.parser.add_argument('--radii', type=str, default='-10,10,20', help='radii in circles environment: e.g. -10,10,20')
         self.parser.add_argument('--env_name', type=str, default='Circles-v0', help='environment to train')
+        self.parser.add_argument('--gen_expert', action='store_true', help='if specified, generate (new) expert dataset and store on disk')
+        # TODO conditionally omit some options / at least from printing in the beginning of the run
 
     def parse(self, save=True):
         self.opt = self.parser.parse_args()

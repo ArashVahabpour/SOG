@@ -143,6 +143,11 @@ def _tabular(opt):
 def _gym(opt):
     filename = 'trajs_{}.pt'.format(opt.env_name.split('-')[0].lower())
     data_dir = os.path.join(opt.dataroot, filename)
+
+    if opt.gen_expert or not os.path.exists(data_dir):
+        from util.gym import Expert
+        Expert(opt).generate_data()
+
     data_dict = torch.load(data_dir)
 
     # num_traj x traj_len x dim

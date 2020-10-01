@@ -11,6 +11,7 @@ from util.visualizer import Visualizer
 #from torchvision.utils import make_grid
 import util.latent_space as ls
 
+
 def lcm(a, b): return abs(a * b) / gcd(a, b) if a and b else 0
 
 

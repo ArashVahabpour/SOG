@@ -20,7 +20,7 @@ if opt.dataset in ['power', 'gas', 'hepmass', 'miniboone', 'bsds300']:  # if tab
     print('{:.2f}'.format(kde(data_loader)))
 
 elif opt.dataset == 'gym':
-    gym.control_env(opt)
+    gym.test_env(sog_model)
 
 else:  # if image dataset
     visualizer = Visualizer(opt)
