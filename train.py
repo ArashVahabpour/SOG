@@ -8,7 +8,7 @@ from data_loaders import create_data_loader
 from models.SOG_model import SOGModel
 import util.latent_space as latent_space
 from util.visualizer import Visualizer
-#from torchvision.utils import make_grid
+# from torchvision.utils import make_grid
 import util.latent_space as ls
 
 

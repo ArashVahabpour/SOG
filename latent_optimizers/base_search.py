@@ -40,7 +40,8 @@ class BaseSearch:
         else:
             real_x_all_r = None
 
-        torch.cuda.synchronize()  # TODO: fix device input
+        if len(self.opt.gpu_ids) > 0:
+            torch.cuda.synchronize()  # TODO: fix device input (+ anywhere else that `synchronize` is called)
         with torch.no_grad():  # no need to store the gradients while searching
             # (batch_size * latent_batch_size) x dim_1 x ... x dim_ky
             fake_all = self.sog_model.decode(all_z_r, real_x=real_x_all_r, requires_grad=False)

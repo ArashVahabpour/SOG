@@ -2,7 +2,7 @@ import gym
 from gym import spaces
 import numpy as np
 
-# gym.logger.set_level(40)
+gym.logger.set_level(40)
 
 
 class CirclesEnv(gym.Env):
@@ -161,15 +161,14 @@ class CirclesEnv(gym.Env):
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
-    def step(self, action, noise=False):
+    def step(self, action):
         self.step_num += 1
 
         loc = self.loc_history[-1]
         vel = action  # 2D instantaneous velocity
         new_loc = loc + vel
-        if noise:
-            # TODO: allow control of noise parameters
-            new_loc += np.random.randn(2) * self.max_ac_mag * 0.1
+
+        new_loc += np.random.randn(2) * self.max_ac_mag * 0.1  # add noise   # TODO: allow control of noise parameters
         self.loc_history = np.vstack([self.loc_history, new_loc])
 
         x, y = new_loc

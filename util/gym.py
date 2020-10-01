@@ -13,6 +13,7 @@ class Expert:
         self.env_name = opt.env_name
 
     def generate_data(self):
+        print('generating expert trajectories...')
         if self.env_name == 'Circles-v0':
             data_dict = self._generate_circle_data()
         else:
@@ -27,7 +28,7 @@ class Expert:
         env = gym.make(self.opt.env_name, radii=radii, state_len=5)
 
         num_traj = 500  # number of trajectories
-        traj_len = 1000  # length of each trajectory --- WARNING: DO NOT CHANGE THIS OR LOWER VALUES CAN CAUSE ISSUES IN GAIL RUN
+        traj_len = 1000  # length of each trajectory --- WARNING: DO NOT CHANGE THIS TO VALUES LOWER THAN 1000 OR IT CAN CAUSE ISSUES IN GAIL RUN
         expert_data = {'states': [],
                        'actions': [],
                        'radii': [],
@@ -43,7 +44,7 @@ class Expert:
             states = []
             actions = []
             while step < traj_len:
-                env.render()  # uncomment for visualisation purposes
+                # env.render()  # uncomment for visualisation / debugging
 
                 radius = env.radius
 
@@ -93,10 +94,11 @@ class Expert:
         return expert_data
 
     def _save_data(self, data_dict):
-        torch.save(data_dict, 'trajs_circles.pt')
+        data_dir = self.opt.dataroot
+        os.makedirs(data_dir, exist_ok=True)
+        filename = 'trajs_{}.pt'.format(self.opt.env_name.split('-')[0].lower())
+        torch.save(data_dict, os.path.join(data_dir, filename))
         print('expert data saved successfully.')
-        data_dict = self._generate_circle_data()
-        self._save_data(data_dict)
 
 
 def test_env(sog_model):
@@ -118,20 +120,22 @@ def test_env(sog_model):
     imitated_data = {'states': [], 'actions': []}
     for traj_id in range(num_traj):
         # selecting a random one-hot code; unsequeeze the batch dimension.
-        mode = all_modes[np.random.randint(0, opt.n_latent, 1)].unsqueeze(0)
+        mode_idx = np.random.randint(0, opt.n_latent, 1)
+        mode = all_modes[mode_idx].unsqueeze(0)
 
-        print('traj #{}'.format(traj_id + 1))
+        print('traj #{}, latent code: {}'.format(traj_id + 1, mode_idx[0]))
 
         obs = env.reset()
         step = 0
         states = []
         actions = []
         while step < traj_len:
-            env.render()  # uncomment for live visualization
+            env.render()  # uncomment for visualization / debugging
 
             obs_tensor = torch.tensor(obs, device=opt.device, dtype=torch.float32).unsqueeze(0)
 
-            torch.cuda.synchronize()
+            if len(opt.gpu_ids) > 0:
+                torch.cuda.synchronize()
             action = sog_model.decode(mode, obs_tensor, requires_grad=False).squeeze().cpu().numpy()
 
             if LA.norm(action) > max_ac_mag:
@@ -144,7 +148,7 @@ def test_env(sog_model):
             step += 1
 
             if done:
-                print('warning: an incomplete trajectory occured.')
+                print('warning: an incomplete trajectory occurred.')
                 break
 
             # TODO record rewards
@@ -158,7 +162,7 @@ def test_env(sog_model):
     torch.save(imitated_data, os.path.join(save_dir, 'trajs_circles.pt'))
     visualize_trajectories(imitated_data['states'], )
     plt.savefig(os.path.join(save_dir, 'trajs.png'))
-    print('expert data saved successfully.')
+    print('imitated results saved successfully.')
 
 
 def visualize_trajectories(states):
@@ -169,11 +173,11 @@ def visualize_trajectories(states):
     custom_cycler = cycler(color=color_list)
 
     # state visualization
-    fig, axs = plt.subplots(ncols=2, figsize=(20, 10))
-    axs[0].set_aspect('equal', 'box'); axs[1].set_aspect('equal', 'box')
-    axs[0].set_prop_cycle(custom_cycler); axs[1].set_prop_cycle(custom_cycler)
+    fig, axs = plt.subplots(ncols=1, figsize=(10, 20))
+    axs.set_aspect('equal', 'box')
+    axs.set_prop_cycle(custom_cycler)
     for i, traj in enumerate(states):
-        axs[0].plot(traj[:, -2], traj[:, -1], "*", label=str(i))
+        axs.plot(traj[:, -2], traj[:, -1], "*", label=str(i))
 
     plt.legend()
     plt.tight_layout()

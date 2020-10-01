@@ -117,5 +117,5 @@ class SOGModel(torch.nn.Module):
         lr = self.old_lr - lrd
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
-        print('>>>>>>> DEBUG, old lr:{}, new lr:{}'.format(self.old_lr, lr)) # TODO directly assign line's value, call in the beginning if continue_train / lrd = self.opt.lr / self.opt.niter_decay * max(0, opt.start_epoch - opt.niter)
+        # TODO directly assign line's value, call in the beginning if continue_train / lrd = self.opt.lr / self.opt.niter_decay * max(0, opt.start_epoch - opt.niter)
         self.old_lr = lr
