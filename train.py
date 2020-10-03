@@ -113,4 +113,4 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
 
     # linearly decay learning rate after certain iterations
     if epoch > opt.niter:
-        sog_model.update_learning_rate()
+        sog_model.update_learning_rate(epoch)

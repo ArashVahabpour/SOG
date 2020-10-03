@@ -112,10 +112,9 @@ class SOGModel(torch.nn.Module):
         params = list(self.netG.parameters())
         self.optimizer = torch.optim.Adam(params, lr=self.opt.lr, betas=(self.opt.beta1, 0.999))
 
-    def update_learning_rate(self):
-        lrd = self.opt.lr / self.opt.niter_decay
-        lr = self.old_lr - lrd
+    def update_learning_rate(self, epoch):
+        opt = self.opt
+        lr = opt.lr * (1 - (epoch - opt.niter) / opt.niter_decay)
+        print('DEBUG>>>> lr:{} / opt.lr:{}'.format(lr, opt.lr))
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
-        # TODO directly assign line's value, call in the beginning if continue_train / lrd = self.opt.lr / self.opt.niter_decay * max(0, opt.start_epoch - opt.niter)
-        self.old_lr = lr
