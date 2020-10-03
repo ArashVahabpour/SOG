@@ -94,7 +94,7 @@ class BaseOptions:
             **dict.fromkeys(['mnist', 'emnist', 'fashion-mnist', 'celeba'], 'image'),
             **dict.fromkeys(['power', 'gas', 'hepmass', 'miniboone', 'bsds300'], 'tabular'),
             **dict.fromkeys(['gym'], 'gym'),
-        }.get(self.opt.dataset, default=None)
+        }.get(self.opt.dataset)
 
         if self.opt.dataset == 'gym':  # imitation learning of a gym environment
             self.opt.radii = [int(r) for r in self.opt.radii.split(',')]
