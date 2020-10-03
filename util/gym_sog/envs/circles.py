@@ -82,6 +82,7 @@ class CirclesEnv(gym.Env):
 
         self.viewer = None
         self._viewer_geom = {}
+        self.is_expert = opt.is_train  # draw blue circles only if expert is controlling the environment
 
         self._init_circle()
         self.loc_history = None  # 2D array of (x, y) locations visited so far in the episode.
@@ -147,7 +148,7 @@ class CirclesEnv(gym.Env):
         self._viewer_geom['traj'].v = self.loc_history * scale
         for i, radius in enumerate(self.radii):
             circle = self._viewer_geom['circles'][i]
-            if radius == self.radius:
+            if self.is_expert and radius == self.radius:
                 circle.set_color(0., 0., 1.)
             else:
                 circle.set_color(0.9, 0.9, 0.9)
