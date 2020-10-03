@@ -56,18 +56,14 @@ class CirclesEnv(gym.Env):
         'video.frames_per_second': 50
     }
 
-    def __init__(self, radii, state_len=5):
-        """
-        Args:
-            radii: a list of all radii to be uniformly at random sampled. Put a negative sign if the circle is to be
-            drawn downwards.
-            e.g. [5, 10, -5]
-        """
-
+    def __init__(self, opt, state_len=5):
         super(CirclesEnv, self).__init__()
 
+        self.radii = opt.radii
+        self.radius = None
+
         # the agent can move in an area of x, y between boundaries (same as rendering boundaries)
-        L = max(map(abs, radii)) * 1.5
+        L = max(map(abs, self.radii)) * 1.5
         self.x_threshold = L
         self.y_threshold = L * 2
 
@@ -76,7 +72,7 @@ class CirclesEnv(gym.Env):
 
         self.state_len = state_len  # number of consecutive locations to be concatenated as state
 
-        self.max_ac_mag = 0.05 * L  # max action magnitude
+        self.max_ac_mag = opt.max_ac_mag
         self.action_space = spaces.Box(low=np.array([-self.max_ac_mag, -self.max_ac_mag]),
                                        high=np.array([self.max_ac_mag, self.max_ac_mag]),
                                        dtype=np.float32)
@@ -86,9 +82,6 @@ class CirclesEnv(gym.Env):
 
         self.viewer = None
         self._viewer_geom = {}
-
-        self.radii = radii
-        self.radius = None
 
         self._init_circle()
         self.loc_history = None  # 2D array of (x, y) locations visited so far in the episode.

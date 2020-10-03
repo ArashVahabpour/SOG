@@ -9,7 +9,6 @@ from models.SOG_model import SOGModel
 import util.latent_space as latent_space
 from util.visualizer import Visualizer
 # from torchvision.utils import make_grid
-import util.latent_space as ls
 
 
 def lcm(a, b): return abs(a * b) / gcd(a, b) if a and b else 0
@@ -83,12 +82,11 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
             visualizer.print_current_loss(epoch, epoch_iter, loss, t)  # loss.data_loaders.item?! TODO
             visualizer.plot_current_loss(loss, total_steps)
 
-        # TODO: introduce parameter for image data
-        # # display output images
-        # if save_fake:
-        #     visuals = OrderedDict([('Real Data', latent_space.make_grid(data_y / 2 + .5)),
-        #                            ('Synthesized Data (Reconstructed)', latent_space.make_grid(generated.data/2+.5))])
-        #     visualizer.display_current_results(visuals, epoch, total_steps)
+        # display output images
+        if opt.dataset_type == 'image' and save_fake:
+            visuals = OrderedDict([('Real Data', latent_space.make_grid(data_y / 2 + .5)),
+                                   ('Synthesized Data (Reconstructed)', latent_space.make_grid(generated.data/2+.5))])
+            visualizer.display_current_results(visuals, epoch, total_steps)
 
         # save latest model
         if total_steps % opt.save_latest_freq == save_delta:

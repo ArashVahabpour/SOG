@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 import torch.nn as nn
 import functools
@@ -217,6 +219,7 @@ class InfoGAILMLP(nn.Module):
         super().__init__()
 
         activation = nn.LeakyReLU()
+        last_activation = nn.Tanh()
 
         self.state_encoder = nn.Sequential(
             torch.nn.Linear(opt.state_dim, 128),
@@ -228,8 +231,11 @@ class InfoGAILMLP(nn.Module):
 
         self.decoder = nn.Sequential(
             activation,
-            torch.nn.Linear(128, opt.action_dim)
+            torch.nn.Linear(128, opt.action_dim),
+            last_activation,
         )
 
+        self.scale = opt.max_ac_mag
+
     def forward(self, z, obs):
-        return self.decoder(self.state_encoder(obs) + self.latent_encoder(z))
+        return self.decoder(self.state_encoder(obs) + self.latent_encoder(z)) * self.scale

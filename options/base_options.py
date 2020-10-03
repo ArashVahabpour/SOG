@@ -4,6 +4,7 @@ from util import util
 import torch
 import warnings
 
+
 class BaseOptions:
     def __init__(self):
         self.parser = argparse.ArgumentParser()
@@ -59,9 +60,10 @@ class BaseOptions:
         self.parser.add_argument('--match_criterion', type=str, default='l1', help='loss function used for finding the matching code: e.g. l1, mse')
 
         # gym
-        self.parser.add_argument('--radii', type=str, default='-10,10,20', help='radii in circles environment: e.g. -10,10,20')
+        self.parser.add_argument('--radii', type=str, default='-10,10,20', help='a list of radii to be sampled uniformly at random for "Circles-v0" environment. a negative sign implies that the circle is to be drawn downwards.')
         self.parser.add_argument('--env_name', type=str, default='Circles-v0', help='environment to train')
         self.parser.add_argument('--gen_expert', action='store_true', help='if specified, generate (new) expert dataset and store on disk')
+        self.parser.add_argument('--render_gym', action='store_true', help='if specified, gym environment will get rendered, useful for debugging.')
         # TODO conditionally omit some options / at least from printing in the beginning of the run
 
     def parse(self, save=True):
@@ -88,9 +90,18 @@ class BaseOptions:
         else:
             self.opt.device = torch.device('cpu')
 
-        # in case of imitation learning of a gym environment
-        if self.opt.dataset == 'gym':
+        self.opt.dataset_type = {
+            **dict.fromkeys(['mnist', 'emnist', 'fashion-mnist', 'celeba'], 'image'),
+            **dict.fromkeys(['power', 'gas', 'hepmass', 'miniboone', 'bsds300'], 'tabular'),
+            **dict.fromkeys(['gym'], 'gym'),
+        }.get(self.opt.dataset, default=None)
+
+        if self.opt.dataset == 'gym':  # imitation learning of a gym environment
             self.opt.radii = [int(r) for r in self.opt.radii.split(',')]
+
+            if self.opt.env_name == 'Circles-v0':
+                # maximum action magnitude in Circles-v0 environment
+                self.opt.max_ac_mag = max(map(abs, self.opt.radii)) * 0.075
 
         # conditional generative model, where some input is provided
         self.opt.is_conditional = self.opt.dataset == 'gym'

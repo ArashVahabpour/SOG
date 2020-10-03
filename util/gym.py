@@ -25,7 +25,7 @@ class Expert:
 
         radii = self.opt.radii
 
-        env = gym.make(self.opt.env_name, radii=radii, state_len=5)
+        env = gym.make(self.opt.env_name, opt=self.opt, state_len=5)
 
         num_traj = 500  # number of trajectories
         traj_len = 1000  # length of each trajectory --- WARNING: DO NOT CHANGE THIS TO VALUES LOWER THAN 1000 OR IT CAN CAUSE ISSUES IN GAIL RUN
@@ -34,7 +34,7 @@ class Expert:
                        'radii': [],
                        'lengths': torch.tensor([traj_len] * num_traj, dtype=torch.int32)}
 
-        max_ac_mag = env.max_ac_mag  # max action magnitude
+        max_ac_mag = self.opt.max_ac_mag  # max action magnitude
 
         for traj_id in range(num_traj):
             print('traj #{}'.format(traj_id + 1))
@@ -44,7 +44,8 @@ class Expert:
             states = []
             actions = []
             while step < traj_len:
-                # env.render()  # uncomment for visualisation / debugging
+                if self.opt.render_gym:
+                    env.render()
 
                 radius = env.radius
 
@@ -61,8 +62,11 @@ class Expert:
                 circ_speed = circ_dest - start
                 length = LA.norm(radial_dist)
                 speed = circ_speed - (radial_dist / length) * (length - abs(radius))
-                if LA.norm(speed) > max_ac_mag:
-                    speed = speed / LA.norm(speed) * max_ac_mag
+
+                # clip action to fit inside its box
+                ac_mag = LA.norm(speed, np.inf)
+                if ac_mag > max_ac_mag:
+                    speed = speed / ac_mag * max_ac_mag
 
                 action = speed
                 ##########################################
@@ -104,7 +108,7 @@ class Expert:
 def test_env(sog_model):
     opt = sog_model.opt
 
-    env = gym.make(opt.env_name, radii=opt.radii, state_len=5)
+    env = gym.make(opt.env_name, opt=opt, state_len=5)
 
     num_traj = 10  # number of trajectories
     traj_len = 1000  # length of each trajectory
@@ -115,7 +119,7 @@ def test_env(sog_model):
     else:
         raise NotImplementedError('creating trajectories not implemented for continuous latent code.')
 
-    max_ac_mag = env.max_ac_mag  # max action magnitude
+    max_ac_mag = opt.max_ac_mag  # max action magnitude
 
     imitated_data = {'states': [], 'actions': []}
     for traj_id in range(num_traj):
@@ -130,16 +134,14 @@ def test_env(sog_model):
         states = []
         actions = []
         while step < traj_len:
-            env.render()  # uncomment for visualization / debugging
+            if opt.render_gym:
+                env.render()
 
             obs_tensor = torch.tensor(obs, device=opt.device, dtype=torch.float32).unsqueeze(0)
 
             if len(opt.gpu_ids) > 0:
                 torch.cuda.synchronize()
             action = sog_model.decode(mode, obs_tensor, requires_grad=False).squeeze().cpu().numpy()
-
-            if LA.norm(action) > max_ac_mag:
-                action = action / LA.norm(action) * max_ac_mag
 
             states.append(obs)
             obs, reward, done, info = env.step(action)

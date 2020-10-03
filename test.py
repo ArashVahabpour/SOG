@@ -15,11 +15,11 @@ data_loader = create_data_loader(opt)
 # test
 sog_model = SOGModel(opt)
 
-if opt.dataset in ['power', 'gas', 'hepmass', 'miniboone', 'bsds300']:  # if tabular dataset
+if opt.dataset_type == 'tabular':  # if tabular dataset
     kde = kde.KDE(opt, sog_model, n_parzen=10000)
     print('{:.2f}'.format(kde(data_loader)))
 
-elif opt.dataset == 'gym':
+elif opt.dataset_type == 'gym':
     gym.test_env(sog_model)
 
 else:  # if image dataset
