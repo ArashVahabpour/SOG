@@ -65,6 +65,7 @@ class BaseOptions:
         self.parser.add_argument('--gen_expert', action='store_true', help='if specified, generate (new) expert dataset and store on disk')
         self.parser.add_argument('--render_gym', action='store_true', help='if specified, gym environment will get rendered, useful for debugging.')
         # TODO conditionally omit some options / at least from printing in the beginning of the run
+        # TODO change uptions with underscores to those with dashes
 
     def parse(self, save=True):
         self.opt = self.parser.parse_args()
