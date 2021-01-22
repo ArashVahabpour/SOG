@@ -100,7 +100,7 @@ class BaseOptions:
         if self.opt.dataset == 'gym':  # imitation learning of a gym environment
             self.opt.radii = eval(self.opt.radii)
 
-            if self.opt.env_name in {'Circles-v0', 'Ellipses-v0'}:
+            if self.opt.env_name in 'Circles-v0':
                 # maximum action magnitude in Circles-v0 environment
                 self.opt.max_ac_mag = max(map(abs, self.opt.radii)) * 0.075
 
