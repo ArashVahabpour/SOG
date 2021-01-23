@@ -20,7 +20,8 @@ if opt.dataset_type == 'tabular':  # if tabular dataset
     print('{:.2f}'.format(kde(data_loader)))
 
 elif opt.dataset_type == 'gym':
-    gym.test_env(sog_model)
+    # gym.test_env(sog_model)
+    gym.test_env_interactive(sog_model)
 
 else:  # if image dataset
     visualizer = Visualizer(opt)
