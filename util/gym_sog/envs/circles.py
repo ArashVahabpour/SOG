@@ -168,10 +168,11 @@ class CirclesEnv(gym.Env):
         x, y = new_loc
 
         done = bool(
-            x < -self.x_threshold
-            or x > self.x_threshold
-            or y < -self.y_threshold
-            or y > self.y_threshold
+            # x < -self.x_threshold
+            # or x > self.x_threshold
+            # or y < -self.y_threshold
+            # or y > self.y_threshold)
+            False
             or len(self.loc_history) > self.max_steps
             or self.step_num >= self.max_steps
         )

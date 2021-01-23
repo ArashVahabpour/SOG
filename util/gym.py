@@ -5,6 +5,8 @@ import numpy as np
 import scipy.linalg as LA
 import torch
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button, RadioButtons
+from torch.distributions.normal import Normal
 
 
 class Expert:
@@ -104,27 +106,30 @@ class Expert:
 
 def test_env(sog_model):
     opt = sog_model.opt
-
     env = gym.make(opt.env_name, opt=opt, state_len=5)
-
-    num_traj = 10  # number of trajectories
     traj_len = 1000  # length of each trajectory
 
-    # TODO if opt.latent_optimizer == 'bcs': pass; elif...
+    # TODO if  pass; elif...
     if opt.latent_optimizer == 'ohs':
+        num_traj = 10  # number of trajectories
         all_modes = torch.eye(opt.n_latent, device=opt.device)
+        continuous = False
+    elif opt.latent_optimizer == 'bcs':
+        num_traj = 20  # number of trajectories
+        lower_cdf, upper_cdf = 0.21, 0.69  # choose 0 < lower_cdf < upper_cdf < 1 for selection of latent codes
+        m = Normal(torch.tensor([0.0]), torch.tensor([1.0]))
+        all_modes = m.icdf(torch.linspace(lower_cdf, upper_cdf, num_traj, device=opt.device))[:, None]
+        continuous = True
     else:
-        raise NotImplementedError('creating trajectories not implemented for continuous latent code.')
-
-    max_ac_mag = opt.max_ac_mag  # max action magnitude
+        raise NotImplementedError
 
     imitated_data = {'states': [], 'actions': []}
     for traj_id in range(num_traj):
         # selecting a random one-hot code; unsequeeze the batch dimension.
-        mode_idx = np.random.randint(0, opt.n_latent, 1)
+        mode_idx = np.array([traj_id]) if continuous else np.random.randint(0, opt.n_latent, 1)
         mode = all_modes[mode_idx].unsqueeze(0)
 
-        print('traj #{}, latent code: {}'.format(traj_id + 1, mode_idx[0]))
+        print('traj #{}, latent code: {}'.format(traj_id + 1, mode if continuous else mode_idx[0]))
 
         obs = env.reset()
         step = 0
@@ -159,25 +164,130 @@ def test_env(sog_model):
     save_dir = os.path.join(opt.results_dir, opt.name, 'test_{}'.format(opt.which_epoch))
     os.makedirs(save_dir, exist_ok=True)
     torch.save(imitated_data, os.path.join(save_dir, 'trajs_circles.pt'))
-    visualize_trajectories(imitated_data['states'], )
+    visualize_trajectories(imitated_data['states'], continuous, max(map(abs, opt.radii)))
+    plt.show()
     plt.savefig(os.path.join(save_dir, 'trajs.png'))
     print('imitated results saved successfully.')
 
 
-def visualize_trajectories(states):
-    from cycler import cycler
-    NUM_COLORS = len(states)  # number of trajectories
+def test_env_interactive(sog_model):
+    opt = sog_model.opt
+    env = gym.make(opt.env_name, opt=opt, state_len=5)
+    traj_len = 1000  # length of each trajectory
+
+    if opt.latent_optimizer == 'bcs':
+        m = Normal(torch.tensor([0.0]), torch.tensor([1.0]))
+        mode = m.icdf(value)[:, None]
+        continuous = True
+    else:
+        raise NotImplementedError('interactive demo is only implemented for the case with continuous latent code.')
+
+    # selecting a random one-hot code; unsequeeze the batch dimension.
+    print('traj #{}, latent code: {}'.format(traj_id + 1, mode if continuous else mode_idx[0]))
+
+    obs = env.reset()
+    step = 0
+    states = []
+    actions = []
+    while step < traj_len:
+        if opt.render_gym:
+            env.render()
+
+        obs_tensor = torch.tensor(obs, device=opt.device, dtype=torch.float32).unsqueeze(0)
+
+        if len(opt.gpu_ids) > 0:
+            torch.cuda.synchronize()
+        action = sog_model.decode(mode, obs_tensor, requires_grad=False).squeeze().cpu().numpy()
+
+        states.append(obs)
+        obs, reward, done, info = env.step(action)
+        actions.append(action)
+
+        step += 1
+
+        if done:
+            print('warning: an incomplete trajectory occurred.')
+            break
+
+    states = np.array(states)
+    actions = np.array(actions)
+
+    fig, ax = plt.subplots()
+    plt.subplots_adjust(left=0.25, bottom=0.25)
+    t = np.arange(0.0, 1.0, 0.001)
+    a0 = 5
+    f0 = 3
+    s = a0 * np.sin(2 * np.pi * f0 * t)
+    l, = plt.plot(t, s, lw=2, color='red')
+    plt.axis([0, 1, -10, 10])
+
+    axcolor = 'lightgoldenrodyellow'
+    axfreq = plt.axes([0.25, 0.1, 0.65, 0.03], facecolor=axcolor)
+    axamp = plt.axes([0.25, 0.15, 0.65, 0.03], facecolor=axcolor)
+
+    sfreq = Slider(axfreq, 'Freq', 0.1, 30.0, valinit=f0)
+    samp = Slider(axamp, 'Amp', 0.1, 10.0, valinit=a0)
+
+    def update(val):
+        amp = samp.val
+        freq = sfreq.val
+        l.set_ydata(amp * np.sin(2 * np.pi * freq * t))
+        fig.canvas.draw_idle()
+
+    sfreq.on_changed(update)
+    samp.on_changed(update)
+
+    resetax = plt.axes([0.8, 0.025, 0.1, 0.04])
+    button = Button(resetax, 'Reset', color=axcolor, hovercolor='0.975')
+
+    def reset(event):
+        sfreq.reset()
+        samp.reset()
+
+    button.on_clicked(reset)
+
+    rax = plt.axes([0.025, 0.5, 0.15, 0.15], facecolor=axcolor)
+    radio = RadioButtons(rax, ('red', 'blue', 'green'), active=0)
+
+    def colorfunc(label):
+        l.set_color(label)
+        fig.canvas.draw_idle()
+
+    radio.on_clicked(colorfunc)
+
+    plt.show()
+
+
+def visualize_trajectories(states, continuous, max_r):
+    num_traj = len(states)
     cm = plt.get_cmap('gist_rainbow')
-    color_list = [cm(1.*i/NUM_COLORS) for i in range(NUM_COLORS)]
+    color_list = [cm(1. * i / num_traj) for i in range(num_traj)]
+    from cycler import cycler
     custom_cycler = cycler(color=color_list)
 
     # state visualization
     fig, axs = plt.subplots(ncols=1, figsize=(10, 20))
     axs.set_aspect('equal', 'box')
     axs.set_prop_cycle(custom_cycler)
-    for i, traj in enumerate(states):
-        axs.plot(traj[:, -2], traj[:, -1], "*", label=str(i))
 
-    plt.legend()
-    plt.tight_layout()
+    for i, traj in enumerate(states):
+        if continuous:
+            axs.plot(traj[:, -2], traj[:, -1])
+        else:
+            axs.plot(traj[:, -2], traj[:, -1], "*", label=str(i))
+
+    if continuous:  # plot the max radius circles
+        for shift in [-max_r, max_r]:
+            axs.plot(max_r * np.cos(np.linspace(0, 4*np.pi, 500)),
+                     max_r * np.sin(np.linspace(0, 4 * np.pi, 500)) + shift,
+                     color='000000')
+
+    if not continuous:
+        plt.legend()
+        plt.tight_layout()
+    else:
+        plt.axis('equal')
+        plt.xlim([-max_r * 1.5, max_r * 1.5])
+        plt.ylim([-max_r * 3, max_r * 3])
+        plt.axis('off')
     plt.title('SOG')
