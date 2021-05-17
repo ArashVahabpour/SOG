@@ -46,4 +46,14 @@ For training/testing, run:
 python train.py --name gym --dataset gym --env_name Circles-v0 --net_type infogail_mlp --latent_optimizer ohs --n_latent 3 --gpu_ids 0,1 --criterion mse --match_criterion mse --print_freq 500 --save_latest_freq 64000 --save_epoch_freq 1 --niter 5 --niter_decay 5
 python test.py --name gym --dataset gym --env_name Circles-v0 --net_type infogail_mlp --latent_optimizer ohs --n_latent 3 --gpu_ids 0,1 --match_criterion mse
 ```
+
+TEMPORARY: LATEST params (also pls add seed!)
+```shell script
+--name gym --dataset gym --env_name Circles-v0 --net_type infogail_mlp --latent_optimizer ohs --n_latent 3 --block_size 1 --samples_per_dim 100 --criterion mse --match_criterion mse --print_freq 500 --save_latest_freq 64000 --save_epoch_freq 1 --niter 20 --niter_decay 20 --gpu_ids -1 --radii 10,20,-10
+--name gym --dataset gym --env_name Circles-v0 --net_type infogail_mlp --latent_optimizer ohs --match_criterion mse --n_latent 3 --block_size 1 --samples_per_dim 100 --radii 10,20,-10 --gpu_ids -1
+--name gym-len1 --dataset gym --env_name Circles-v0 --net_type infogail_mlp --latent_optimizer ohs --n_latent 3 --block_size 1 --samples_per_dim 100 --criterion mse --match_criterion mse --print_freq 500 --save_latest_freq 64000 --save_epoch_freq 1 --niter 20 --niter_decay 20 --state_len 1 --gpu_ids -1 --radii 10,20,-10
+--name gym-len1 --dataset gym --env_name Circles-v0 --net_type infogail_mlp --latent_optimizer ohs --match_criterion mse --n_latent 3 --block_size 1 --samples_per_dim 100 --state_len 1 --radii 10,20,-10 --gpu_ids -1
+--name gym-el --dataset gym --env_name Ellipses-v0 --net_type infogail_mlp --latent_optimizer ohs --n_latent 3 --block_size 1 --samples_per_dim 100 --criterion mse --match_criterion mse --print_freq 500 --save_latest_freq 64000 --save_epoch_freq 1 --niter 20 --niter_decay 20 --gpu_ids -1 --radii 10,20,20,10,-10,-10
+--name gym-el --dataset gym --env_name Ellipses-v0 --net_type infogail_mlp --latent_optimizer ohs --match_criterion mse --n_latent 3 --block_size 1 --samples_per_dim 100 --gpu_ids -1 --radii 10,20,20,10,-10,-10
+
 Note that the argument `--gen_expert` is responsible for generating expert data. It is only necessary when you run `train` / `test` script for the first time. You might omit that next time you run the scripts since the expert file will already exist. 

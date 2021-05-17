@@ -18,13 +18,15 @@ class Expert:
         print('generating expert trajectories...')
         if self.env_name == 'Circles-v0':
             data_dict = self._generate_circle_data()
+        elif self.env_name == 'Ellipses-v0':
+            data_dict = self._generate_ellipse_data()
         else:
             raise NotImplementedError('expert for environment {} not implemented.'.format(self.env_name))
 
         self._save_data(data_dict)
 
     def _generate_circle_data(self):
-        env = gym.make(self.opt.env_name, opt=self.opt, state_len=5)
+        env = gym.make(self.opt.env_name, opt=self.opt)
 
         num_traj = 500  # number of trajectories
         traj_len = 1000  # length of each trajectory --- WARNING: DO NOT CHANGE THIS TO VALUES LOWER THAN 1000 OR IT CAN CAUSE ISSUES IN GAIL RUN
@@ -96,6 +98,90 @@ class Expert:
 
         return expert_data
 
+    def _generate_ellipse_data(self):
+        env = gym.make(self.opt.env_name, opt=self.opt)
+
+        num_traj = 500  # number of trajectories
+        traj_len = 1000  # length of each trajectory --- WARNING: DO NOT CHANGE THIS TO VALUES LOWER THAN 1000 OR IT CAN CAUSE ISSUES IN GAIL RUN
+        expert_data = {'states': [],
+                       'actions': [],
+                       'radii': [],
+                       'lengths': torch.tensor([traj_len] * num_traj, dtype=torch.int32)}
+
+        max_ac_mag = self.opt.max_ac_mag  # max action magnitude
+
+        for traj_id in range(num_traj):
+            print('traj #{}'.format(traj_id + 1))
+
+            observation = env.reset()
+            step = 0
+            states = []
+            actions = []
+            while step < traj_len:
+                if self.opt.render_gym:
+                    env.render()
+
+                radius_x, radius_y = env.radius_x, env.radius_y
+
+                ########## compute speed vector ##########
+                delta_theta = 2 * np.pi / 300
+                start = env.state[-2:]
+                center = np.array([0, radius_y])
+                rot_mat = np.array([
+                    [np.cos(delta_theta), -np.sin(delta_theta)],
+                    [np.sin(delta_theta), np.cos(delta_theta)]
+                ])
+                scale_y = lambda a: np.array([
+                    [1, 0],
+                    [0, a]
+                ])
+                radial_dist = scale_y(radius_y/radius_x) @ rot_mat @ scale_y(radius_x/radius_y) @ (start - center).reshape(2,1)
+                radial_dist = radial_dist.ravel()
+                ellipse_dest = radial_dist + center
+                ellipse_speed = ellipse_dest - start
+                length = LA.norm(radial_dist)
+                x, y = radial_dist
+                try:
+                    theta = np.arctan((y/radius_y) / (x/radius_x))
+                except:
+                    theta = np.pi/2
+                radius = np.sqrt((radius_y * np.sin(theta))**2 + (radius_x * np.cos(theta))**2)
+                speed = ellipse_speed - (radial_dist / length) * (length - radius)
+
+                # clip action to fit inside its box
+                ac_mag = LA.norm(speed, np.inf)
+                if ac_mag > max_ac_mag:
+                    speed = speed / ac_mag * max_ac_mag
+
+                action = speed
+                ##########################################
+
+                states.append(observation)
+                observation, reward, done, info = env.step(action)
+                actions.append(action)
+
+                step += 1
+
+                if done:
+                    # start over a new trajectory hoping that this time it completes
+                    observation = env.reset()
+                    step = 0
+                    states = []
+                    actions = []
+                    print('warning: an incomplete trajectory occurred.')
+
+            expert_data['states'].append(torch.FloatTensor(np.array(states)))
+            expert_data['actions'].append(torch.FloatTensor(np.array(actions)))
+            expert_data['radii'].append([radius_x, radius_y])
+
+        env.close()
+
+        expert_data['states'] = torch.stack(expert_data['states'])
+        expert_data['actions'] = torch.stack(expert_data['actions'])
+        expert_data['radii'] = torch.tensor(expert_data['radii'])
+
+        return expert_data
+
     def _save_data(self, data_dict):
         data_dir = self.opt.dataroot
         os.makedirs(data_dir, exist_ok=True)
@@ -106,7 +192,7 @@ class Expert:
 
 def test_env(sog_model):
     opt = sog_model.opt
-    env = gym.make(opt.env_name, opt=opt, state_len=5)
+    env = gym.make(opt.env_name, opt=opt)
     traj_len = 1000  # length of each trajectory
 
     # TODO if  pass; elif...
@@ -115,7 +201,7 @@ def test_env(sog_model):
         all_modes = torch.eye(opt.n_latent, device=opt.device)
         continuous = False
     elif opt.latent_optimizer == 'bcs':
-        num_traj = 20  # number of trajectories
+        num_traj = 1  # number of trajectories
         lower_cdf, upper_cdf = 0.21, 0.69  # choose 0 < lower_cdf < upper_cdf < 1 for selection of latent codes
         m = Normal(torch.tensor([0.0]), torch.tensor([1.0]))
         all_modes = m.icdf(torch.linspace(lower_cdf, upper_cdf, num_traj, device=opt.device))[:, None]
@@ -126,10 +212,11 @@ def test_env(sog_model):
     imitated_data = {'states': [], 'actions': []}
     for traj_id in range(num_traj):
         # selecting a random one-hot code; unsequeeze the batch dimension.
-        mode_idx = np.array([traj_id]) if continuous else np.random.randint(0, opt.n_latent, 1)
+        # mode_idx = np.array([traj_id]) if continuous else np.random.randint(opt.n_latent)
+        mode_idx = 2
         mode = all_modes[mode_idx].unsqueeze(0)
 
-        print('traj #{}, latent code: {}'.format(traj_id + 1, mode if continuous else mode_idx[0]))
+        print('traj #{}, latent code: {}'.format(traj_id + 1, mode))
 
         obs = env.reset()
         step = 0
@@ -178,7 +265,8 @@ def test_env(sog_model):
             if continuous:
                 axs.plot(traj[:, -2], traj[:, -1])
             else:
-                axs.plot(traj[:, -2], traj[:, -1], "*", label=str(i))
+                axs.plot(traj[:, -2], traj[:, -1])
+                axs.plot(traj[0, -2], traj[0, -1], color="b", marker='x')
 
         if continuous:  # plot the max radius circles
             for shift in [-max_r, max_r]:
@@ -204,11 +292,8 @@ def test_env(sog_model):
 
 def test_env_interactive(sog_model):
     opt = sog_model.opt
-    env = gym.make(opt.env_name, opt=opt, state_len=5)
+    env = gym.make(opt.env_name, opt=opt)
     traj_len = 1000  # length of each trajectory
-
-    if not opt.latent_optimizer == 'bcs':
-        raise NotImplementedError('interactive demo is only implemented for the case with continuous latent code.')
 
     def get_traj(cdf):
         m = Normal(torch.tensor([0.0]), torch.tensor([1.0]))

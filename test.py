@@ -20,8 +20,12 @@ if opt.dataset_type == 'tabular':  # if tabular dataset
     print('{:.2f}'.format(kde(data_loader)))
 
 elif opt.dataset_type == 'gym':
-    # gym.test_env(sog_model)
-    gym.test_env_interactive(sog_model)
+    if opt.latent_optimizer == 'ohs':
+        gym.test_env(sog_model)
+    elif opt.latent_optimizer == 'bcs':
+        gym.test_env_interactive(sog_model)
+    else:
+        raise NotImplementedError
 
 else:  # if image dataset
     visualizer = Visualizer(opt)

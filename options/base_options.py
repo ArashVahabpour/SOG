@@ -62,6 +62,7 @@ class BaseOptions:
 
         # gym
         self.parser.add_argument('--radii', type=str, default='-10,10,20', help='a list of radii to be sampled uniformly at random for "Circles-v0" environment. a negative sign implies that the circle is to be drawn downwards. you may also input expressions such as "np.linspace(-10,10,100)".')
+        self.parser.add_argument('--state_len', type=int, default=5, help='number of past location in state definition in "Circles-v0" environment.')
         self.parser.add_argument('--env_name', type=str, default='Circles-v0', help='environment to train')
         self.parser.add_argument('--gen_expert', action='store_true', help='if specified, generate (new) expert dataset and store on disk')
         self.parser.add_argument('--render_gym', action='store_true', help='if specified, gym environment will get rendered, useful for debugging.')
@@ -99,9 +100,12 @@ class BaseOptions:
         }.get(self.opt.dataset)
 
         if self.opt.dataset == 'gym':  # imitation learning of a gym environment
-            self.opt.radii = eval(self.opt.radii)
+            if 'np' in self.opt.radii:
+                self.opt.radii = eval(self.opt.radii)
+            else:
+                self.opt.radii = [int(x) for x in self.opt.radii.split(',')]
 
-            if self.opt.env_name in 'Circles-v0':
+            if self.opt.env_name in {'Circles-v0', 'Ellipses-v0'}:
                 # maximum action magnitude in Circles-v0 environment
                 self.opt.max_ac_mag = max(map(abs, self.opt.radii)) * 0.075
 

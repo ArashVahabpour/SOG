@@ -56,7 +56,7 @@ class CirclesEnv(gym.Env):
         'video.frames_per_second': 50
     }
 
-    def __init__(self, opt, state_len=5):
+    def __init__(self, opt):
         super(CirclesEnv, self).__init__()
 
         self.radii = opt.radii
@@ -70,7 +70,7 @@ class CirclesEnv(gym.Env):
         self.max_steps = 2000
         self.step_num = None  # how many steps passed since environment reset
 
-        self.state_len = state_len  # number of consecutive locations to be concatenated as state
+        self.state_len = opt.state_len  # number of consecutive locations to be concatenated as state
 
         self.max_ac_mag = opt.max_ac_mag
         self.action_space = spaces.Box(low=np.array([-self.max_ac_mag, -self.max_ac_mag]),
@@ -100,7 +100,9 @@ class CirclesEnv(gym.Env):
     def _init_loc(self):
         """Initializes the first `state_len` locations when episode starts
         """
-        self.loc_history = np.zeros([self.state_len, 2])
+        self.loc_history = np.array([[(2*np.random.rand()-1) * self.x_threshold, (2*np.random.rand()-1) * self.y_threshold]]*5)
+        return
+        # self.loc_history = np.zeros([self.state_len, 2])
 
     def render(self, mode='human'):
         from gym.envs.classic_control import rendering
