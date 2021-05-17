@@ -124,7 +124,7 @@ class Expert:
                 radius_x, radius_y = env.radius_x, env.radius_y
 
                 ########## compute speed vector ##########
-                delta_theta = 2 * np.pi / 300
+                delta_theta = 2 * np.pi / 100
                 start = env.state[-2:]
                 center = np.array([0, radius_y])
                 rot_mat = np.array([
